@@ -1,0 +1,14 @@
+.DS_Store
+**/.DS_Store
+
+reviveai_env/
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+.env
+
+.gradio
+
+credentials/
