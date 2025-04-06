@@ -87,15 +87,13 @@ system_message = """
     請根據以上準則，為每件商品創造最優化的標題和描述，讓潛在買家產生強烈的購買意願，同時認同其永續價值。
     """
 
-
+# 組合所有資訊
     # 商品類型: {item_type}
     # 商品名稱: {item_name}
     # 商品描述: {item_description}
     # 圖片分析: {image_analysis}
-    
-    # 搜尋資訊: {search_results if search_results else "無可用的搜尋資訊"}
 
-# 組合所有資訊
+    # 搜尋資訊: {search_results if search_results else "無可用的搜尋資訊"}
 
 prompt = f"""
     商品名稱：samsung Galaxy S21
@@ -105,6 +103,7 @@ prompt = f"""
     2. 確保所有資訊的準確性，不要過度誇大
     3. 重點突出二手商品的價值和環保意義
     """
+
 start = time.time()  
 
 response = client.responses.create(
