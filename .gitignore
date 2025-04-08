@@ -12,3 +12,5 @@ __pycache__/
 .gradio
 
 credentials/
+
+.ipynb_checkpoints

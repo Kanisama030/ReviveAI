@@ -1,11 +1,12 @@
-from openai import OpenAI
+from openai import AsyncOpenAI
 from dotenv import load_dotenv
 import os
 import time
 import json
+import asyncio
 
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))  
 
 system_message = """
     #zh-tw
@@ -87,16 +88,9 @@ system_message = """
     請根據以上準則，為每件商品創造最優化的標題和描述，讓潛在買家產生強烈的購買意願，同時認同其永續價值。
     """
 
-# 組合所有資訊
-    # 商品類型: {item_type}
-    # 商品名稱: {item_name}
-    # 商品描述: {item_description}
-    # 圖片分析: {image_analysis}
-
-    # 搜尋資訊: {search_results if search_results else "無可用的搜尋資訊"}
-
-prompt = f"""
-    商品名稱：samsung Galaxy S21
+async def generate_product_content(item_name: str) -> dict:
+    prompt = f"""
+    商品名稱：{item_name}
     請根據以上所有資訊，創建優化的商品標題和描述。
     特別注意：
     1. 如果有搜尋資訊，請善用這些資訊來強化商品描述的專業性和準確性
@@ -104,93 +98,103 @@ prompt = f"""
     3. 重點突出二手商品的價值和環保意義
     """
 
-start = time.time()  
+    start = time.time()  
 
-response = client.responses.create(
-    model="gpt-4o-mini",
-    input=[
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": prompt}
-    ],
-    text={
-        "format": {
-            "type": "json_schema",
-            "name": "product_schema",
-            "schema": {
-                "type": "object",
-                "properties": {
-                "optimized_product_title": {
-                    "type": "string",
-                    "description": "優化商品標題，具有吸引力"
-                },
-                "optimized_product_description": {
+    response = await client.responses.create(
+        model="gpt-4o-mini",
+        input=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt}
+        ],
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "product_schema",
+                "schema": {
                     "type": "object",
                     "properties": {
-                    "basic_information": {
+                    "optimized_product_title": {
                         "type": "string",
-                        "description": "商品基本資訊，包括規格、材料、尺寸等。"
+                        "description": "優化商品標題，具有吸引力"
                     },
-                    "features_and_benefits": {
-                        "type": "string",
-                        "description": "商品特色與賣點，強調產品的獨特優勢和競爭力。"
-                    },
-                    "current_status": {
-                        "type": "string",
-                        "description": "商品現況詳細說明，包括使用痕跡等。"
-                    },
-                    "sustainable_value": {
-                        "type": "string",
-                        "description": "永續價值，連結至相關的 SDGs 目標，並解釋購買二手產品的正面影響。"
-                    },
-                    "call_to_action": {
-                        "type": "string",
-                        "description": "呼籲行動，令人信服的結論，總結購買優勢，並使用 SEO 關鍵字創造迫切性。"
+                    "optimized_product_description": {
+                        "type": "object",
+                        "properties": {
+                        "basic_information": {
+                            "type": "string",
+                            "description": "商品基本資訊，包括規格、材料、尺寸等。"
+                        },
+                        "features_and_benefits": {
+                            "type": "string",
+                            "description": "商品特色與賣點，強調產品的獨特優勢和競爭力。"
+                        },
+                        "current_status": {
+                            "type": "string",
+                            "description": "商品現況詳細說明，包括使用痕跡等。"
+                        },
+                        "sustainable_value": {
+                            "type": "string",
+                            "description": "永續價值，連結至相關的 SDGs 目標，並解釋購買二手產品的正面影響。"
+                        },
+                        "call_to_action": {
+                            "type": "string",
+                            "description": "呼籲行動，令人信服的結論，總結購買優勢，並使用 SEO 關鍵字創造迫切性。"
+                        }
+                        },
+                        "required": [
+                        "basic_information",
+                        "features_and_benefits",
+                        "current_status",
+                        "sustainable_value",
+                        "call_to_action"
+                        ],
+                        "additionalProperties": False
                     }
                     },
                     "required": [
-                    "basic_information",
-                    "features_and_benefits",
-                    "current_status",
-                    "sustainable_value",
-                    "call_to_action"
+                    "optimized_product_title",
+                    "optimized_product_description"
                     ],
                     "additionalProperties": False
-                }
                 },
-                "required": [
-                "optimized_product_title",
-                "optimized_product_description"
-                ],
-                "additionalProperties": False
-            },
-            "strict": True
+                "strict": True
+            }
         }
-    }
-)
+    )
 
-output = json.loads(response.output_text)
+    output = json.loads(response.output_text)
+    end = time.time()
+    print(f"執行時間: {end - start:.2f} 秒")
+    
+    return output
 
-print(
-f'''
-優化商品標題:
-{output["optimized_product_title"]}
+def print_product_content(output: dict):
+    print(
+        f'''
+        優化商品標題:
+        {output["optimized_product_title"]}
 
-優化商品描述:
----📦 商品基本資訊：---
-{output["optimized_product_description"]["basic_information"]}
+        優化商品描述:
+        ---📦 商品基本資訊：---
+        {output["optimized_product_description"]["basic_information"]}
 
----✨ 商品特色與賣點：---
-{output["optimized_product_description"]["features_and_benefits"]}
+        ---✨ 商品特色與賣點：---
+        {output["optimized_product_description"]["features_and_benefits"]}
 
----📝 商品現況詳細說明：---
-{output["optimized_product_description"]["current_status"]}
+        ---📝 商品現況詳細說明：---
+        {output["optimized_product_description"]["current_status"]}
 
----💚 永續價值：--- 
-{output["optimized_product_description"]["sustainable_value"]}
+        ---💚 永續價值：--- 
+        {output["optimized_product_description"]["sustainable_value"]}
 
-{output["optimized_product_description"]["call_to_action"]}
-'''
-)
+        {output["optimized_product_description"]["call_to_action"]}
+        '''
+    )
 
-end=time.time()
-print(f"執行時間: {end - start:.2f} 秒")
+async def main():
+    item_name = "samsung Galaxy S21"
+    output = await generate_product_content(item_name)
+    print_product_content(output)
+
+if __name__ == "__main__":
+    asyncio.run(main())
