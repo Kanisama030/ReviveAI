@@ -8,13 +8,13 @@ import asyncio
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))  
 
-# Function to encode the image
+# 將圖片轉換為 Base64 編碼的函數
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 async def analyze_image(image_path, user_prompt):
-    # Getting the Base64 string
+    # 取得圖片的 Base64 字串
     base64_image = encode_image(image_path)
     
     start = time.time()  
@@ -45,7 +45,7 @@ async def analyze_image(image_path, user_prompt):
     return response
 
 async def main():
-    # Path to your image
+    # 圖片路徑
     image_path = "pics/test.jpg"
 
     user_prompt = """
