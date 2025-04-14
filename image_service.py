@@ -8,7 +8,7 @@ import asyncio
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))  
 
-# 將圖片轉換為 Base64 編碼的函數
+# 將圖片轉換為 Base64 編碼的函數 (I/O 操作，但不複雜，可保留同步)
 def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")

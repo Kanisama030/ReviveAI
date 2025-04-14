@@ -1,6 +1,6 @@
-import os
 from dotenv import load_dotenv
-from query_chroma import query_similar_products, gpt_rerank
+import asyncio
+from query_chroma import query_similar_products, gpt_rerank_async
 
 # 載入環境變數
 load_dotenv()
@@ -14,23 +14,22 @@ def calculate_environmental_benefits(saved_carbon: float) -> dict:
     """計算環境效益等值"""
     trees = saved_carbon / TREE_ABSORPTION
     car_km = saved_carbon / CAR_EMISSION
-    
     return {
         "trees": "少於0.01" if trees < 0.01 else f"{trees:.1f}",
         "car_km": "少於0.1" if car_km < 0.1 else f"{car_km:.1f}"
     }
 
-def calculate_carbon_footprint(query: str) -> dict:
-    """計算碳足跡並返回結果"""
+async def calculate_carbon_footprint_async(query: str) -> dict:
+    """計算碳足跡並返回結果 (非同步版本)"""
     # 查詢相似產品
     results = query_similar_products(query)
-    
-    # 使用 GPT 重新排序
-    reranked_result = gpt_rerank(query, results)
-    
+
+    # 使用 GPT 重新排序 (非同步)
+    reranked_result = await gpt_rerank_async(query, results)
+
     if "error" in reranked_result:
         return {"error": reranked_result["error"]}
-    
+
     # 獲取最佳匹配的產品
     best_index = reranked_result["best_match_index"]
     best_match = {
@@ -40,14 +39,14 @@ def calculate_carbon_footprint(query: str) -> dict:
         "similarity_score": results['distances'][0][best_index],
         "details": results['documents'][0][best_index]
     }
-    
+
     # 計算節省的碳排放
     original_footprint = best_match['carbon_footprint']
     saved_carbon = original_footprint * DEFAULT_SAVING_RATIO
-    
+
     # 計算環境效益
     benefits = calculate_environmental_benefits(saved_carbon)
-    
+
     return {
         "selected_product": best_match,
         "saved_carbon": saved_carbon,
@@ -78,5 +77,6 @@ def print_results(results: dict) -> None:
 if __name__ == "__main__":
     # 示例查詢
     query = "macbook air 13吋 2020 16G 512G 筆記型電腦"
-    results = calculate_carbon_footprint(query)
+    # 使用asyncio.run執行非同步函數
+    results = asyncio.run(calculate_carbon_footprint_async(query))
     print_results(results)

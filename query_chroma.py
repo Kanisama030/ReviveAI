@@ -1,9 +1,10 @@
 import chromadb
 from chromadb.utils import embedding_functions
-from openai import OpenAI
+from openai import AsyncOpenAI
 import json
 import os
 from dotenv import load_dotenv
+import asyncio
 
 # 設置 tokenizers 並行處理環境變數
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -26,8 +27,9 @@ collection = chroma_client.get_collection(
 )
 
 # 初始化 OpenAI 客戶端
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# 這個函數不涉及網路 I/O，保持同步也可以
 def query_similar_products(query_text: str, n_results: int = 10):
     """
     查詢與輸入文本最相似的產品
@@ -46,9 +48,9 @@ def query_similar_products(query_text: str, n_results: int = 10):
     
     return results
 
-def gpt_rerank(query: str, results: dict):
+async def gpt_rerank_async(query: str, results: dict):
     """
-    使用 GPT 重新排序查詢結果
+    使用 GPT 重新排序查詢結果 (非同步版本)
     
     Args:
         query (str): 原始查詢
@@ -88,8 +90,8 @@ def gpt_rerank(query: str, results: dict):
         
         選擇最符合查詢的產品。"""
 
-    # 調用 GPT
-    response = client.responses.create(
+    # 調用 GPT (非同步)
+    response = await client.responses.create(
         model="gpt-4o-mini",
         input=[
             {"role": "system", "content": "你是一個專業的產品匹配助手，請根據查詢選擇最符合的產品。特別注意產品類別和功能的匹配度，確保選擇的產品能夠滿足查詢的主要需求。"},
@@ -126,13 +128,14 @@ def gpt_rerank(query: str, results: dict):
     except (json.JSONDecodeError, AttributeError):
         return {"error": "無法解析 GPT 回應"}
 
-if __name__ == "__main__":
+# 主函數
+async def main():
     # 示例查詢
     query = "macbook air 13吋 2020 16G 512G 筆記型電腦"
     results = query_similar_products(query)
     
-    # 使用 GPT 重新排序
-    reranked_result = gpt_rerank(query, results)
+    # 使用 GPT 重新排序 (非同步)
+    reranked_result = await gpt_rerank_async(query, results)
     
     # 打印 GPT 選擇的最佳結果
     print(f"查詢: {query}")
@@ -163,3 +166,5 @@ if __name__ == "__main__":
         print(f"\n   碳足跡: {metadata['carbon_footprint']} kg CO2e")
         print(f"   相似度分數: {results['distances'][0][i]:.4f}") 
         
+if __name__ == "__main__":
+    asyncio.run(main())
