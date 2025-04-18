@@ -92,7 +92,7 @@ async def gpt_rerank_async(query: str, results: dict):
 
     # 調用 GPT (非同步)
     response = await client.responses.create(
-        model="gpt-4o-mini",
+        model="gpt-4.1-nano",
         input=[
             {"role": "system", "content": "你是一個專業的產品匹配助手，請根據查詢選擇最符合的產品。特別注意產品類別和功能的匹配度，確保選擇的產品能夠滿足查詢的主要需求。"},
             {"role": "user", "content": prompt}

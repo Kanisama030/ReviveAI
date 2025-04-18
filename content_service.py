@@ -4,11 +4,82 @@ import os
 import time
 import json
 import asyncio
+from search_service import search_brave, extract_search_results
 
 load_dotenv()
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))  
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-system_message = """
+async def generate_search_queries(item_name: str) -> str:
+    """使用 OpenAI function calling 生成一個綜合搜尋查詢"""
+    search_tools = [
+        {
+        "type": "function",
+        "name": "search_products",
+            "description": "搜尋產品相關信息，包括規格、特點、評價等",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "一個綜合性的搜尋查詢，能夠獲取產品的規格、特點、評價等全面信息"
+                    }
+                },
+                "required": ["query"],
+                "additionalProperties": False
+            },
+            "strict": True
+        }
+    ]
+    
+    response = await client.responses.create(
+        model="gpt-4.1-nano",
+        input=[
+            {"role": "system", "content": "#zh-tw您是一位產品搜尋專家，能根據產品名稱生成最佳的繁體中文的搜尋查詢，到搜尋引擎上搜尋，以獲取產品的全面信息。"},
+            {"role": "user", "content": f"請為這個二手產品生成一個綜合性的搜尋查詢，以獲取其詳細信息：{item_name}。查詢應該能夠同時獲取產品的規格、特點、優缺點和使用體驗等全面信息。"}
+        ],
+        tools=search_tools,
+        tool_choice={"type": "function", "name": "search_products"}
+    )
+    
+    default_query = f"{item_name} 詳細規格 特點 評價 優缺點"
+    
+    try:
+        # 獲取第一個 tool_call
+        tool_call = response.output[0]
+        args = json.loads(tool_call.arguments)
+        query = args['query']
+        print(f"成功獲取查詢: {query}")
+        return query
+    except Exception as e:
+        pass
+    
+    # 如果出現任何問題，返回默認查詢
+    return default_query
+
+
+async def generate_product_content(item_name: str) -> dict:
+    # 步驟1: 生成搜尋查詢
+    search_query = await generate_search_queries(item_name)
+    
+    # 步驟2: 執行搜尋
+    result = await search_brave(search_query)
+    search_results = extract_search_results(result)
+    
+    # 步驟3: 生成優化內容
+    prompt = f"""
+    商品名稱：{item_name}
+    
+    網路搜尋資訊：
+    {search_results}
+    
+    請根據以上所有資訊，創建優化的商品標題和描述。
+    特別注意：
+    1. 善用網路搜尋資訊來強化商品描述的專業性和準確性
+    2. 確保所有資訊的準確性，不要過度誇大
+    3. 重點突出二手商品的價值和環保意義
+    """
+
+    system_message = """
     #zh-tw
     您是一位專精於永續發展的二手商品行銷專家，擅長運用AIDA模型和FAB銷售來優化商品文案，同時具備豐富的電商平台優化經驗。
 
@@ -52,23 +123,22 @@ system_message = """
     寫在 "optimized_product_description"，依AIDA架構分為以下：
 
     1. "basic_information" 注意力(A)段落：
-        - 使用條列式，清楚列出商品完整的基本資訊（規格、材質、尺寸等）
-        - 使用 FAB 法則說明主要特色
-        - 核心關鍵字自然植入
+        - 使用條列式，清楚列出商品完整的基本資訊、特色（規格、材質、尺寸等）
+        - 自然植入核心關鍵字
 
     2.  "features_and_benefits" 興趣(I)段落：
         - 突出獨特優勢和競爭力
         - 連結使用場景和情境
-        - 加入相關長尾關鍵字
+        - 自然融入相關長尾關鍵字
 
     3. "current_status" 慾望(D)段落：
         - 描述商品現況、保存狀況
         - 描述使用體驗和效益
-        - 加入社會認同元素
+        - 自然融入社會認同元素
 
     4. "sustainable_value" 行動(A)段落：
         - 具體連結至相關 SDGs 目標
-        - 對應到 1~3 個 SDGs 目標，用符號表現條列式，如 * SDGs 12
+        - 對應到 1~3 個 SDGs 目標，條列出來，如 SDGs 12
         - 說明選購二手商品對環境的正面影響
         - 連結消費者的環保意識
         
@@ -83,25 +153,17 @@ system_message = """
     3. 根據平台特性調整文案風格，結合 SEO 優化原則，如使用關鍵字、長尾關鍵字，提升商品排名和自然流量
     4. 整合圖片訊息，描述圖片中可見的細節，標注任何使用痕跡或瑕疵，突出商品優勢特徵
     5. 強調透過二手交易為永續發展做出的貢獻
-    6. 適當在文案中加入網路搜尋的結果，例如商品規格、特色等等，但要確定其真實性。
+    6. 適當在文案中加入網路搜尋的結果，例如商品規格、特色等等，但要確定其真實性
+    7. 在文案中自然利用 AIDA 與 FAB 行銷理論的架構
+    8. 注意以上文案是要直接放在拍賣平台上，所以你的目標讀者是二手買家，請注意你的口吻
 
     請根據以上準則，為每件商品創造最優化的標題和描述，讓潛在買家產生強烈的購買意願，同時認同其永續價值。
-    """
-
-async def generate_product_content(item_name: str) -> dict:
-    prompt = f"""
-    商品名稱：{item_name}
-    請根據以上所有資訊，創建優化的商品標題和描述。
-    特別注意：
-    1. 如果有搜尋資訊，請善用這些資訊來強化商品描述的專業性和準確性
-    2. 確保所有資訊的準確性，不要過度誇大
-    3. 重點突出二手商品的價值和環保意義
     """
 
     start = time.time()  
 
     response = await client.responses.create(
-        model="gpt-4o-mini",
+        model="gpt-4.1-mini",
         input=[
             {"role": "system", "content": system_message},
             {"role": "user", "content": prompt}
@@ -166,11 +228,21 @@ async def generate_product_content(item_name: str) -> dict:
     end = time.time()
     print(f"執行時間: {end - start:.2f} 秒")
     
+    # 將搜尋查詢和結果加入到返回數據中
+    output["search_query"] = search_query
+    output["search_results"] = search_results
+    
     return output
 
 def print_product_content(output: dict):
     print(
         f'''
+        搜尋查詢:
+        {output["search_query"]}
+        
+        網路搜尋結果:
+        {output["search_results"]}
+
         優化商品標題:
         {output["optimized_product_title"]}
 

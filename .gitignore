@@ -13,4 +13,6 @@ __pycache__/
 
 credentials/
 
+.ropeproject
+
 .ipynb_checkpoints

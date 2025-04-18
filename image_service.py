@@ -20,7 +20,7 @@ async def analyze_image(image_path, user_prompt):
     start = time.time()  
 
     response = await client.responses.create(
-        model="gpt-4o-mini",
+        model="gpt-4.1-mini",
         input=[
             {         
                 "role": "developer",
