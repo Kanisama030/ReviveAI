@@ -5,12 +5,10 @@ ReviveAI 產品搜尋客戶端
 實現一個能夠執行網路搜尋和分析產品資訊的 AI 代理。
 """
 
-import os
 import asyncio
 import argparse
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 
@@ -49,22 +47,21 @@ async def search_product_info(query):
         
         # 系統提示
         system_message = """你是一個專業的產品研究助手，專門幫助用戶尋找和分析產品的詳細資訊。
+            請按照以下步驟執行產品資訊搜尋：
+            1. 使用 brave_search 工具搜尋產品的相關資訊
+            2. 仔細分析搜尋結果，找出最相關和權威的網頁
+            3. 使用 fetch_webpage 工具獲取這些網頁的詳細內容
+            4. 綜合分析所有獲取的資訊，提供完整的產品報告
 
-請按照以下步驟執行產品資訊搜尋：
-1. 使用 brave_search 工具搜尋產品的相關資訊
-2. 仔細分析搜尋結果，找出最相關和權威的網頁
-3. 使用 fetch_webpage 工具獲取這些網頁的詳細內容
-4. 綜合分析所有獲取的資訊，提供完整的產品報告
+            你的報告應包含以下部分（以繁體中文回答）：
+            - 產品的基本介紹
+            - 產品規格
+            - 主要功能和特點
+            - 使用者評價摘要
+            - 資訊來源參考
 
-你的報告應包含以下部分（以繁體中文回答）：
-- 產品的基本介紹
-- 產品規格
-- 主要功能和特點
-- 使用者評價摘要
-- 資訊來源參考
-
-請保持客觀和準確，如果來源之間有衝突的資訊，請註明並提供多個觀點。
-"""
+            請保持客觀和準確，如果來源之間有衝突的資訊，請註明並提供多個觀點。
+            """
         
         # 執行代理並獲取結果
         response = await agent.ainvoke({
@@ -100,44 +97,21 @@ async def main():
         print(f"「{query}」產品資訊報告")
         print("="*60 + "\n")
         
-        # 根據不同的響應結構顯示內容
-        if isinstance(result, str):
-            # 如果直接返回字符串
-            print(result)
-            
-        elif isinstance(result, dict):
-            # 處理字典類型的響應
-            # 首先嘗試尋找 messages 中的 AI 消息
-            if "messages" in result:
-                ai_messages = [msg for msg in result["messages"] if msg.type == "ai"]
-                if ai_messages:
-                    print(ai_messages[-1].content)
-                    
-                # 如果找不到 AI 消息但有其他消息
-                elif result["messages"]:
-                    last_message = result["messages"][-1]
+        # 處理 ReAct 代理返回的響應
+        if isinstance(result, dict) and "messages" in result:
+            # 獲取最後一條訊息
+            if result["messages"] and len(result["messages"]) > 0:
+                last_message = result["messages"][-1]
+                if hasattr(last_message, "content"):
                     print(last_message.content)
-                    
-                # 沒有任何消息
                 else:
-                    print("回應中沒有找到任何消息。")
-                    
-            # 處理其他常見的回應格式
-            elif "output" in result:
-                print(result["output"])
-            elif "output_text" in result:
-                print(result["output_text"])
-            elif "steps" in result and result["steps"] and "output" in result["steps"][-1]:
-                print(result["steps"][-1]["output"])
-            elif "content" in result:
-                print(result["content"])
+                    print(str(last_message))
             else:
-                # 無法識別的格式直接輸出
-                print(result)
+                print("回應中沒有找到任何訊息。")
         else:
-            # 其他類型的響應
-            print(result)
-        
+            # 直接打印非標準格式的回應
+            print(str(result))
+            
         print("\n" + "="*60)
     except Exception as e:
         print(f"搜尋過程中發生錯誤：{str(e)}")
