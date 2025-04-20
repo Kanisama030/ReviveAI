@@ -23,11 +23,12 @@ async def search_product_info(query):
         query: 要搜尋的產品查詢
         
     Returns:
-        處理後的回應內容
+        dict: 包含以下內容的字典:
+            - text: 處理後的文本內容
+            - raw_response: 原始響應對象
     """
     # 使用 OpenAI 模型
-    model = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-    print("使用 OpenAI GPT-4.1-mini 模型")
+    model = ChatOpenAI(model="gpt-4.1-nano")
     
     # 配置 MCP 客戶端並連接到 WebTools 服務器
     async with MultiServerMCPClient(
@@ -46,20 +47,29 @@ async def search_product_info(query):
         agent = create_react_agent(model, tools)
         
         # 系統提示
-        system_message = """你是一個專業的產品研究助手，專門幫助用戶尋找和分析產品的詳細資訊。
-            請按照以下步驟執行產品資訊搜尋：
-            1. 使用 brave_search 工具搜尋產品的相關資訊
-            2. 仔細分析搜尋結果，找出最相關和權威的網頁
-            3. 使用 fetch_webpage 工具獲取這些網頁的詳細內容
-            4. 綜合分析所有獲取的資訊，提供完整的產品報告
-
+        system_message = """
+            你是一個專業的產品研究助手，專門幫助用戶尋找和分析產品的詳細資訊。
+            
+            請嚴格遵循以下工作流程，這是非常重要的：
+            1. 首先，僅執行**一次** brave_search 工具搜尋，使用最精準的關鍵詞。重要提醒：絕對不要發送兩次搜尋請求，這會導致系統錯誤！
+            
+            2. 分析搜尋結果後，立即選擇 1-2 個最相關的權威網頁（官方網站、知名媒體或專業評測網站優先）
+            
+            3. 對每個選擇的網頁使用 fetch_webpage 工具獲取詳細內容。
+               注意：這一步是**強制性且必須執行**的！不要跳過！
+               如果第一個網頁無法獲取，請嘗試其他網頁，直到成功獲取至少一個網頁的內容。
+            
+            4. 僅基於獲取的網頁內容，綜合分析並提供完整的產品報告。
+            
+            我將無法接受未包含 fetch_webpage 步驟的回應。請記住，搜尋結果摘要永遠不足以提供完整、準確的產品資訊，必須獲取並分析完整的網頁內容。
+            
             你的報告應包含以下部分（以繁體中文回答）：
             - 產品的基本介紹
             - 產品規格
             - 主要功能和特點
-            - 使用者評價摘要
-            - 資訊來源參考
-
+            - 整體評價摘要
+            - 資訊來源參考（列出你使用的網頁URLs）
+            
             請保持客觀和準確，如果來源之間有衝突的資訊，請註明並提供多個觀點。
             """
         
@@ -67,11 +77,31 @@ async def search_product_info(query):
         response = await agent.ainvoke({
             "messages": [
                 {"role": "system", "content": system_message},
-                {"role": "user", "content": f"請提供關於「{query}」的詳細產品資訊，特別是技術規格、特點、優缺點和評價。"}
+                {"role": "user", "content": f"請提供關於「{query}」的詳細產品資訊，依規定回答規格、特點和評價等。"}
             ]
         })
         
-        return response
+        # 處理 ReAct 代理返回的響應，提取搜尋結果
+        formatted_text = ""
+        if isinstance(response, dict) and "messages" in response:
+            # 獲取最後一條訊息
+            if response["messages"] and len(response["messages"]) > 0:
+                last_message = response["messages"][-1]
+                if hasattr(last_message, "content"):
+                    formatted_text = last_message.content
+                else:
+                    formatted_text = str(last_message)
+            else:
+                formatted_text = "未找到產品資訊"
+        else:
+            # 直接獲取非標準格式的回應
+            formatted_text = str(response)
+        
+        # 返回處理後的文本和原始響應
+        return {
+            "text": formatted_text,
+            "raw_response": response
+        }
 
 async def main():
     """主程序入口點"""
@@ -97,21 +127,9 @@ async def main():
         print(f"「{query}」產品資訊報告")
         print("="*60 + "\n")
         
-        # 處理 ReAct 代理返回的響應
-        if isinstance(result, dict) and "messages" in result:
-            # 獲取最後一條訊息
-            if result["messages"] and len(result["messages"]) > 0:
-                last_message = result["messages"][-1]
-                if hasattr(last_message, "content"):
-                    print(last_message.content)
-                else:
-                    print(str(last_message))
-            else:
-                print("回應中沒有找到任何訊息。")
-        else:
-            # 直接打印非標準格式的回應
-            print(str(result))
-            
+        # 直接使用處理後的文本
+        print(result["text"])
+        
         print("\n" + "="*60)
     except Exception as e:
         print(f"搜尋過程中發生錯誤：{str(e)}")

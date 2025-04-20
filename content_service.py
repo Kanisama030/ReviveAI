@@ -4,68 +4,19 @@ import os
 import time
 import json
 import asyncio
-from search_service import search_brave, extract_search_results
+from agent_client import search_product_info
 
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-async def generate_search_queries(item_name: str) -> str:
-    """使用 OpenAI function calling 生成一個綜合搜尋查詢"""
-    search_tools = [
-        {
-        "type": "function",
-        "name": "search_products",
-            "description": "搜尋產品相關信息，包括規格、特點、評價等",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "一個綜合性的搜尋查詢，能夠獲取產品的規格、特點、評價等全面信息"
-                    }
-                },
-                "required": ["query"],
-                "additionalProperties": False
-            },
-            "strict": True
-        }
-    ]
-    
-    response = await client.responses.create(
-        model="gpt-4.1-nano",
-        input=[
-            {"role": "system", "content": "#zh-tw您是一位產品搜尋專家，能根據產品名稱生成最佳的繁體中文的搜尋查詢，到搜尋引擎上搜尋，以獲取產品的全面信息。"},
-            {"role": "user", "content": f"請為這個二手產品生成一個綜合性的搜尋查詢，以獲取其詳細信息：{item_name}。查詢應該能夠同時獲取產品的規格、特點、優缺點和使用體驗等全面信息。"}
-        ],
-        tools=search_tools,
-        tool_choice={"type": "function", "name": "search_products"}
-    )
-    
-    default_query = f"{item_name} 詳細規格 特點 評價 優缺點"
-    
-    try:
-        # 獲取第一個 tool_call
-        tool_call = response.output[0]
-        args = json.loads(tool_call.arguments)
-        query = args['query']
-        print(f"成功獲取查詢: {query}")
-        return query
-    except Exception as e:
-        pass
-    
-    # 如果出現任何問題，返回默認查詢
-    return default_query
-
-
 async def generate_product_content(item_name: str) -> dict:
-    # 步驟1: 生成搜尋查詢
-    search_query = await generate_search_queries(item_name)
+    # 直接使用商品名稱調用agent進行搜尋和分析
+    search_result = await search_product_info(item_name)
     
-    # 步驟2: 執行搜尋
-    result = await search_brave(search_query)
-    search_results = extract_search_results(result)
+    # 獲取處理後的搜尋結果文本
+    search_results = search_result["text"]
     
-    # 步驟3: 生成優化內容
+    # 生成優化內容
     prompt = f"""
     商品名稱：{item_name}
     
@@ -228,8 +179,7 @@ async def generate_product_content(item_name: str) -> dict:
     end = time.time()
     print(f"執行時間: {end - start:.2f} 秒")
     
-    # 將搜尋查詢和結果加入到返回數據中
-    output["search_query"] = search_query
+    # 將搜尋結果加入到返回數據中
     output["search_results"] = search_results
     
     return output
@@ -237,9 +187,6 @@ async def generate_product_content(item_name: str) -> dict:
 def print_product_content(output: dict):
     print(
         f'''
-        搜尋查詢:
-        {output["search_query"]}
-        
         網路搜尋結果:
         {output["search_results"]}
 
@@ -264,9 +211,17 @@ def print_product_content(output: dict):
     )
 
 async def main():
-    item_name = "samsung Galaxy S21"
-    output = await generate_product_content(item_name)
-    print_product_content(output)
+    item_name = "samsung Galaxy S21 256GB 紫色"
+    print(f"\n開始為商品「{item_name}」生成優化內容")
+    print("正在使用 AI 代理進行網路搜尋和分析，這可能需要一些時間...\n")
+    
+    try:
+        output = await generate_product_content(item_name)
+        print_product_content(output)
+    except Exception as e:
+        print(f"生成過程中發生錯誤：{str(e)}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     asyncio.run(main())
