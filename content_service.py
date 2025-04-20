@@ -9,16 +9,16 @@ from agent_client import search_product_info
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-async def generate_product_content(item_name: str) -> dict:
-    # 直接使用商品名稱調用agent進行搜尋和分析
-    search_result = await search_product_info(item_name)
+async def generate_product_content(product_description: str) -> dict:
+    # 直接使用商品描述調用agent進行搜尋和分析
+    search_result = await search_product_info(product_description)
     
     # 獲取處理後的搜尋結果文本
     search_results = search_result["text"]
     
     # 生成優化內容
     prompt = f"""
-    商品名稱：{item_name}
+    商品描述：{product_description}
     
     網路搜尋資訊：
     {search_results}
@@ -211,12 +211,12 @@ def print_product_content(output: dict):
     )
 
 async def main():
-    item_name = "samsung Galaxy S21 256GB 紫色"
-    print(f"\n開始為商品「{item_name}」生成優化內容")
+    product_description = "samsung Galaxy S21 256GB 紫色"
+    print(f"\n開始為商品「{product_description}」生成優化內容")
     print("正在使用 AI 代理進行網路搜尋和分析，這可能需要一些時間...\n")
     
     try:
-        output = await generate_product_content(item_name)
+        output = await generate_product_content(product_description)
         print_product_content(output)
     except Exception as e:
         print(f"生成過程中發生錯誤：{str(e)}")

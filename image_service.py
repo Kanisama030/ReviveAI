@@ -13,42 +13,9 @@ def encode_image(image_path):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
-async def analyze_image(image_path, user_prompt):
-    # 取得圖片的 Base64 字串
-    base64_image = encode_image(image_path)
-    
-    start = time.time()  
-
-    response = await client.responses.create(
-        model="gpt-4.1-mini",
-        input=[
-            {         
-                "role": "developer",
-                "content": "你是一位專業的電商平台二手商品圖像分析專家，專門協助賣家優化商品呈現。"
-            },
-            {
-                "role": "user",
-                "content": [
-                    { "type": "input_text", "text": user_prompt },
-                    {
-                        "type": "input_image",
-                        "image_url": f"data:image/jpeg;base64,{base64_image}",
-                    },
-                ],
-            }
-        ],
-    )
-
-    end = time.time()
-    print(response.output_text)
-    print(f"執行時間: {end - start:.2f} 秒")
-    return response
-
-async def main():
-    # 圖片路徑
-    image_path = "pics/test.jpg"
-
-    user_prompt = """
+async def analyze_image(image_path):
+    # 固定的商品分析提示
+    prompt = """
     #zh-tw
     回應時請使用 Markdown 格式
     請仔細分析圖片中的商品，並從以下幾個面向提供專業的觀察：
@@ -75,7 +42,42 @@ async def main():
     - 非常重要：回應時請使用 Markdown 格式
     """
     
-    await analyze_image(image_path, user_prompt)
+    # 取得圖片的 Base64 字串
+    base64_image = encode_image(image_path)
+    
+    start = time.time()  
+
+    response = await client.responses.create(
+        model="gpt-4.1-mini",
+        input=[
+            {         
+                "role": "developer",
+                "content": "你是一位專業的電商平台二手商品圖像分析專家，專門協助賣家優化商品呈現。"
+            },
+            {
+                "role": "user",
+                "content": [
+                    { "type": "input_text", "text": prompt },
+                    {
+                        "type": "input_image",
+                        "image_url": f"data:image/jpeg;base64,{base64_image}",
+                    },
+                ],
+            }
+        ],
+    )
+
+    end = time.time()
+    print(response.output_text)
+    print(f"執行時間: {end - start:.2f} 秒")
+    return response
+
+async def main():
+    # 圖片路徑
+    image_path = "pics/test.jpg"
+
+    # 分析圖片
+    await analyze_image(image_path)
 
 if __name__ == "__main__":
     asyncio.run(main())
