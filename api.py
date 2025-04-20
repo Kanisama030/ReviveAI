@@ -1,11 +1,9 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException, BackgroundTasks
+from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
-import asyncio
 import tempfile
 import os
-import json
 from typing import Optional, Dict, Any
 
 # 導入服務模組

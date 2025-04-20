@@ -7,10 +7,8 @@ ReviveAI 的 MCP 服務器 - 提供網路搜尋和網頁抓取工具
 """
 
 import os
-import asyncio
 import aiohttp
 from dotenv import load_dotenv
-from urllib.parse import urlparse
 import markdownify
 import readabilipy.simple_json
 from mcp.server.fastmcp import FastMCP
