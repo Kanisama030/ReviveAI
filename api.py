@@ -1,9 +1,10 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 import tempfile
 import os
+import json
 from typing import Optional, Dict, Any
 
 # 導入服務模組
@@ -36,6 +37,9 @@ class ProductSearchRequest(BaseModel):
 
 class CarbonCalculationRequest(BaseModel):
     product_description: str
+
+class CombinedServiceRequest(BaseModel):
+    description: str
 
 class ApiResponse(BaseModel):
     success: bool
@@ -124,6 +128,55 @@ async def carbon_calculation_endpoint(request: CarbonCalculationRequest):
         return ApiResponse(
             success=True,
             data=carbon_results
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            error=str(e)
+        )
+
+@app.post("/api/combined_service", response_model=ApiResponse)
+async def combined_service_endpoint(
+    description: str = Form(None),
+    image: UploadFile = File(...)
+):
+    """
+    綜合服務：分析圖片、優化內容並計算碳足跡
+    
+    - **description**: 商品描述文字
+    - **image**: 商品圖片檔案
+    """
+    try:
+        # 保存上傳的圖片到臨時文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+            temp_file.write(await image.read())
+            temp_path = temp_file.name
+        
+        # 分析圖片
+        image_analysis = await analyze_image(temp_path)
+        image_analysis_text = image_analysis.output_text
+        
+        # 刪除臨時文件
+        os.unlink(temp_path)
+        
+        # 將圖片分析結果與原始描述結合
+        combined_description = description or ""
+        if image_analysis_text:
+            combined_description = f"{combined_description}\n\n圖片分析結果:\n{image_analysis_text}"
+        
+        # 生成優化的內容
+        optimized_content = await generate_product_content(combined_description)
+        
+        # 計算碳足跡
+        carbon_results = await calculate_carbon_footprint_async(combined_description)
+        
+        return ApiResponse(
+            success=True,
+            data={
+                "image_analysis": image_analysis_text,
+                "optimized_content": optimized_content,
+                "carbon_footprint": carbon_results
+            }
         )
     except Exception as e:
         return ApiResponse(

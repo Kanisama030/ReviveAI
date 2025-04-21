@@ -51,9 +51,9 @@ async def search_product_info(query):
             你是一個專業的產品研究助手，專門幫助用戶尋找和分析產品的詳細資訊。
             
             請嚴格遵循以下工作流程，這是非常重要的：
-            1. 首先，僅執行**一次** brave_search 工具搜尋，使用最精準的關鍵詞。重要提醒：絕對不要發送兩次搜尋請求，這會導致系統錯誤！
+            1. 首先，使用最精準一組的關鍵詞，僅執行**1次** brave_search 工具搜尋。重要提醒：絕對不要發送 2 次搜尋請求，這會導致系統錯誤！ 
             
-            2. 分析搜尋結果後，立即選擇 1-2 個最相關的權威網頁（官方網站、知名媒體或專業評測網站優先）
+            2. 分析搜尋結果後，立即選擇 1-2 個最相關的權威網頁（官方網站、知名媒體或專業評測網站優先），Brave Search 若因為重複跳出搜尋錯誤: HTTP狀態碼 429 時請繼續使用 fetch_webpage 工具獲取詳細內容。
             
             3. 對每個選擇的網頁使用 fetch_webpage 工具獲取詳細內容。
                注意：這一步是**強制性且必須執行**的！不要跳過！
@@ -77,7 +77,7 @@ async def search_product_info(query):
         response = await agent.ainvoke({
             "messages": [
                 {"role": "system", "content": system_message},
-                {"role": "user", "content": f"請提供關於「{query}」的詳細產品資訊，依規定回答規格、特點和評價等。"}
+                {"role": "user", "content": f"請提供關於「{query}」的詳細產品資訊，依規定回答規格、特點和評價等，執行brave_search工具搜尋唯一1次，再用fetch_webpage工具獲取詳細內容。"}
             ]
         })
         
