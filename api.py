@@ -6,6 +6,8 @@ import tempfile
 import os
 import json
 from typing import Optional, Dict, Any
+import asyncio
+
 
 # 導入服務模組
 from image_service import analyze_image
@@ -164,12 +166,11 @@ async def combined_service_endpoint(
         if image_analysis_text:
             combined_description = f"{combined_description}\n\n圖片分析結果:\n{image_analysis_text}"
         
-        # 生成優化的內容
-        optimized_content = await generate_product_content(combined_description)
-        
-        # 計算碳足跡
-        carbon_results = await calculate_carbon_footprint_async(combined_description)
-        
+        # 並行執行多個非同步操作
+        optimized_content, carbon_results = await asyncio.gather(
+            generate_product_content(combined_description),
+            calculate_carbon_footprint_async(combined_description)
+        )
         return ApiResponse(
             success=True,
             data={
