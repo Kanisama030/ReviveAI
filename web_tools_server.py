@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import markdownify
 import readabilipy.simple_json
 from mcp.server.fastmcp import FastMCP
+import asyncio
 
 # 載入環境變數
 load_dotenv()
@@ -96,7 +97,8 @@ async def fetch_webpage(url: str, raw_html: bool = False) -> str:
     
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, timeout=30) as response:
+            # 設定 4 秒的超時限制
+            async with session.get(url, headers=headers, timeout=4) as response:
                 if response.status != 200:
                     return f"錯誤: 無法獲取頁面，HTTP狀態碼 {response.status}"
                 
@@ -128,6 +130,8 @@ async def fetch_webpage(url: str, raw_html: bool = False) -> str:
                     return f"## 網頁內容: {title}\n\n來源: {url}\n\n{markdown}"
                 except Exception as e:
                     return f"處理 HTML 時出錯: {str(e)}\n\n網頁: {url}"
+    except asyncio.TimeoutError:
+        return f"錯誤: 網頁載入超時（超過4秒）:此網頁可能響應速度較慢或暫時無法訪問。"
     except Exception as e:
         return f"抓取網頁時發生錯誤: {str(e)}\n\n網頁: {url}"
 
