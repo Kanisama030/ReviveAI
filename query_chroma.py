@@ -56,30 +56,13 @@ def query_similar_products(
     
     return results
 
-# 舊版函數，保留但不使用
-def old_query_similar_products(query_text: str, n_results: int = 10):
-    """
-    查詢與輸入文本最相似的產品（舊版本）
-    Args:
-        query_text (str): 查詢文本
-        n_results (int): 返回的結果數量，預設為 10
-    Returns:
-        dict: 包含相似產品信息的字典
-    """
-    results = collection.query(
-        query_texts=[query_text],
-        n_results=n_results
-    )
-
-    return results
-
 async def ai_search_products(product_description: str):
     """
     使用 AI 搜尋產品資料，通過 function calling 執行查詢
     Args:
         product_description (str): 產品描述文字
     Returns:
-        dict: 查詢結果
+        dict: 查詢結果包含最佳匹配產品信息
     """
     # 定義查詢函數工具
     tools = [{
@@ -215,10 +198,30 @@ async def ai_search_products(product_description: str):
         # 使用 GPT 重新排序結果
         reranked_result = await gpt_rerank_async(product_description, results)
 
+        # 檢查是否有重新排序錯誤
+        if "error" in reranked_result:
+            return {"error": reranked_result["error"]}
+
+        # 直接提取最佳匹配的產品
+        best_index = reranked_result["best_match_index"]
+
+        # 準備結果物件
+        best_match = {
+            "product_name": results['metadatas'][0][best_index]['product_name'],
+            "company": results['metadatas'][0][best_index]['company'],
+            "carbon_footprint": float(results['metadatas'][0][best_index]['carbon_footprint']),
+            "sector": results['metadatas'][0][best_index].get('sector', '未知'),
+            "similarity_score": results['distances'][0][best_index],
+            "details": results['documents'][0][best_index],
+            "selection_reason": reranked_result["reason"]
+        }
+
+        # 返回包含搜尋參數、原始結果、重新排序結果和最佳匹配產品的完整結果
         return {
             "search_params": args,
             "raw_results": results,
-            "reranked_result": reranked_result
+            "reranked_result": reranked_result,
+            "best_product": best_match  # 新增：直接包含最佳匹配產品
         }
 
     except (json.JSONDecodeError, KeyError) as e:
@@ -250,10 +253,16 @@ async def gpt_rerank_async(query: str, results: dict):
         })
 
     # 構建提示
-    prompt = f"""請根據以下查詢和候選產品列表，選擇最符合的產品：
+    prompt = f"""
+        請根據以下查詢和候選產品列表，選擇最符合的產品：
         查詢：{query}
         候選產品列表：
         {json.dumps(candidates, ensure_ascii=False, indent=2)}
+
+        你的任務是：
+        1. 先從產品描述中識別出查詢的產品類型，再從候選產品中識別出每個產品的類型，然後嚴格按照產品類型進行匹配。
+        2. 選擇前請詳細分析每個產品的資訊，特別是產品名稱和詳細描述。
+        3. 請給予簡短且清楚的 40 字以內的理由說明為何選擇該產品。
 
         【重要】產品類型必須嚴格匹配，這是所有條件中最優先的要求：
         - 如果查詢是筆記型電腦，你必須選擇筆記型電腦，絕對不可選擇列印機、鍵盤等其他類型產品
@@ -264,10 +273,7 @@ async def gpt_rerank_async(query: str, results: dict):
         1. 產品品牌的匹配度（例如：查詢Apple產品時，優先選擇Apple品牌）
         2. 產品規格的相似度（例如：存儲容量、處理器性能等）
         3. 碳足跡數值的合理性（避免選擇碳足跡異常高或異常低的產品）
-
-        先從產品描述中識別出查詢的產品類型，再從候選產品中識別出每個產品的類型，然後嚴格按照產品類型進行匹配。
-        選擇前請詳細分析每個產品的資訊，特別是產品名稱和詳細描述。
-        請提供清晰的理由說明為何選擇該產品，特別是如何匹配產品類型。"""
+        """
 
     # 調用 GPT (非同步)
     response = await client.responses.create(
@@ -289,7 +295,7 @@ async def gpt_rerank_async(query: str, results: dict):
                         },
                         "reason": {
                             "type": "string",
-                            "description": "選擇該產品的原因"
+                            "description": "40 字以內選擇該產品的原因"
                         }
                     },
                     "required": ["best_match_index", "reason"],
@@ -307,76 +313,6 @@ async def gpt_rerank_async(query: str, results: dict):
     except (json.JSONDecodeError, AttributeError):
         return {"error": "無法解析 GPT 回應"}
 
-def get_best_product_from_results(search_results: dict) -> dict:
-    """
-    從搜尋結果中提取最佳匹配的產品
-
-    Args:
-        search_results (dict): AI 搜尋結果
-
-    Returns:
-        dict: 最佳匹配產品信息
-    """
-    if "error" in search_results:
-        return {"error": search_results["error"]}
-
-    if "error" in search_results["reranked_result"]:
-        return {"error": search_results["reranked_result"]["error"]}
-
-    # 獲取最佳匹配的產品
-    best_index = search_results["reranked_result"]["best_match_index"]
-    raw_results = search_results["raw_results"]
-
-    best_match = {
-        "product_name": raw_results['metadatas'][0][best_index]['product_name'],
-        "company": raw_results['metadatas'][0][best_index]['company'],
-        "carbon_footprint": float(raw_results['metadatas'][0][best_index]['carbon_footprint']),
-        "sector": raw_results['metadatas'][0][best_index].get('sector', '未知'),
-        "similarity_score": raw_results['distances'][0][best_index],
-        "details": raw_results['documents'][0][best_index],
-        "selection_reason": search_results["reranked_result"]["reason"]
-    }
-
-    return best_match
-
-# 舊版的主函數，保留但不使用
-async def old_main():
-    # 示例查詢
-    query = "macbook air 13吋 2020 16G 512G 筆記型電腦"
-    results = query_similar_products(query)
-    
-    # 使用 GPT 重新排序 (非同步)
-    reranked_result = await gpt_rerank_async(query, results)
-    
-    # 打印 GPT 選擇的最佳結果
-    print(f"查詢: {query}")
-    print("\nGPT 選擇的最佳匹配:")
-    if "error" in reranked_result:
-        print(f"錯誤: {reranked_result['error']}")
-    else:
-        best_index = reranked_result["best_match_index"]
-        best_match = {
-            "product_name": results['metadatas'][0][best_index]['product_name'],
-            "company": results['metadatas'][0][best_index]['company'],
-            "carbon_footprint": results['metadatas'][0][best_index]['carbon_footprint'],
-            "similarity_score": results['distances'][0][best_index],
-            "details": results['documents'][0][best_index]
-        }
-        
-        print(f"產品名稱: {best_match['product_name']}")
-        print(f"公司: {best_match['company']}")
-        print(f"碳足跡: {best_match['carbon_footprint']} kg CO2e")
-        print(f"相似度分數: {best_match['similarity_score']:.4f}")
-        print(f"詳細信息: {best_match['details']}")
-        print(f"\n選擇原因: {reranked_result['reason']}")
-    
-    # 打印所有候選者
-    print("\n所有候選產品:")
-    for i, (doc, metadata) in enumerate(zip(results['documents'][0], results['metadatas'][0])):
-        print(f"\n{i+1}. 產品名稱: {metadata['product_name']}")
-        print(f"\n   碳足跡: {metadata['carbon_footprint']} kg CO2e")
-        print(f"   相似度分數: {results['distances'][0][i]:.4f}") 
-
 
 # 主函數
 async def main():
@@ -386,18 +322,16 @@ async def main():
     # 使用 AI 搜尋產品
     search_results = await ai_search_products(product_description)
 
-    # 獲取最佳匹配產品
-    best_product = get_best_product_from_results(search_results)
-
     # 打印 AI 搜尋參數
     print(f"原始查詢: {product_description}")
     print(f"AI 搜尋參數: {search_results.get('search_params', {})}")
 
     # 打印最佳匹配產品
     print("\n最佳匹配產品:")
-    if "error" in best_product:
-        print(f"錯誤: {best_product['error']}")
+    if "error" in search_results:
+        print(f"錯誤: {search_results['error']}")
     else:
+        best_product = search_results["best_product"]
         print(f"產品名稱: {best_product['product_name']}")
         print(f"公司: {best_product['company']}")
         print(f"產業類別: {best_product['sector']}")

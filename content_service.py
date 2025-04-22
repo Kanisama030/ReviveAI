@@ -5,39 +5,64 @@ import time
 import json
 import asyncio
 from agent_client import search_product_info
+from templates.content_styles import CONTENT_STYLES
 
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-async def generate_product_content(product_description: str) -> dict:
+async def generate_product_content(product_description: str, style: str = "normal") -> dict:
+    """
+    根據選擇的風格生成優化的商品內容
+    
+    Args:
+        product_description (str): 原始商品描述
+        style (str): 選擇的文案風格，默認為"normal"
+        
+    Returns:
+        dict: 優化後的商品內容
+    """
+
+    # 確保選擇的風格有效，否則使用默認風格
+    if style not in CONTENT_STYLES:
+        style = "normal"
+    
+    # 獲取對應的風格模板
+    style_template = CONTENT_STYLES[style]
+
     # 直接使用商品描述調用agent進行搜尋和分析
     search_result = await search_product_info(product_description)
     
     # 獲取處理後的搜尋結果文本
     search_results = search_result["text"]
     
-    # 生成優化內容
+    # 生成優化內容，融入選定的風格
     prompt = f"""
     商品描述：{product_description}
     
     網路搜尋資訊：
     {search_results}
     
-    請根據以上所有資訊，創建優化的商品標題和描述。
+    請根據以上所有資訊，創建符合「{style_template["name"]}」風格的商品標題和描述。
+    以下是這種風格的範例：
+    {style_template["examples"][0]}
+    {style_template["examples"][1]}
+    
     特別注意：
     1. 善用網路搜尋資訊來強化商品描述的專業性和準確性
     2. 確保所有資訊的準確性，不要過度誇大
     3. 重點突出二手商品的價值和環保意義
+    4. 嚴格遵循指定的風格要求
     """
 
-    system_message = """
+    # 使用風格特定的系統消息
+    system_message = f"""
     #zh-tw
-    您是一位專精於永續發展的二手商品行銷專家，擅長運用AIDA模型和FAB銷售來優化商品文案，同時具備豐富的電商平台優化經驗。
+    {style_template["system_prompt"]}
 
     【文案優化資訊來源】
     1. 用戶提供的基本資訊
     2. AI 圖像分析結果
-    3. 網路搜尋資訊（若有）
+    3. 網路搜尋資訊
 
     【文案策略核心】
     1. AIDA模型應用：
@@ -106,9 +131,9 @@ async def generate_product_content(product_description: str) -> dict:
     5. 強調透過二手交易為永續發展做出的貢獻
     6. 適當在文案中加入網路搜尋的結果，例如商品規格、特色等等，但要確定其真實性
     7. 在文案中自然利用 AIDA 與 FAB 行銷理論的架構
-    8. 注意以上文案是要直接放在拍賣平台上，所以你的目標讀者是二手買家，請注意你的口吻
+    8. 注意以上文案是要直接放在拍賣平台上，所以你的目標讀者是二手買家，請注意你的口吻需自然
 
-    請根據以上準則，為每件商品創造最優化的標題和描述，讓潛在買家產生強烈的購買意願，同時認同其永續價值。
+    請根據以上準則，遵循文案風格要求，為每件商品創造最優化的標題和描述，讓潛在買家產生強烈的購買意願，同時認同其永續價值。
     """
 
     start = time.time()  
@@ -179,8 +204,9 @@ async def generate_product_content(product_description: str) -> dict:
     end = time.time()
     print(f"執行時間: {end - start:.2f} 秒")
     
-    # 將搜尋結果加入到返回數據中
+    # 將搜尋結果和風格信息加入到返回數據中
     output["search_results"] = search_results
+    output["style"] = style
     
     return output
 

@@ -5,6 +5,7 @@ import os
 import logging
 from typing import Optional, Dict, Any
 import asyncio
+from templates.content_styles import CONTENT_STYLES
 
 # 獲取日誌記錄器
 logger = logging.getLogger("reviveai_api")
@@ -22,8 +23,9 @@ router = APIRouter(
 )
 
 # 定義請求和響應模型
-class ProductDescriptionRequest(BaseModel):
+class ContentRequest(BaseModel):
     description: str
+    style: Optional[str] = "normal"  # 默認使用標準風格
 
 class ProductSearchRequest(BaseModel):
     query: str
@@ -74,18 +76,22 @@ async def image_analysis_endpoint(
         )
 
 @router.post("/content_service", response_model=ApiResponse)
-async def content_optimization_endpoint(request: ProductDescriptionRequest):
+async def content_optimization_endpoint(request: ContentRequest):
     """
-    優化商品描述內容
+    優化商品描述內容，支持多種文案風格
 
     - **description**: 原始商品描述
+    - **style**: 文案風格，可選值：normal(標準專業)、fun(輕鬆活潑)、meme(網路迷因)、formal(正式商務)、story(故事體驗)
     """
     desc_preview = request.description[:50] + "..." if len(request.description) > 50 else request.description
-    logger.info(f"接收內容優化請求, 內容預覽: {desc_preview}")
+    logger.info(f"接收內容優化請求, 內容預覽: {desc_preview}, 風格: {request.style}")
 
     try:
-        logger.info(f"開始進行內容優化")
-        optimized_content = await generate_product_content(request.description)
+        logger.info(f"開始進行內容優化，使用風格: {request.style}")
+        optimized_content = await generate_product_content(
+            request.description, 
+            style=request.style
+        )
         logger.info(f"內容優化完成")
 
         return ApiResponse(
@@ -153,16 +159,18 @@ async def carbon_calculation_endpoint(request: CarbonCalculationRequest):
 @router.post("/combined_service", response_model=ApiResponse)
 async def combined_service_endpoint(
     description: str = Form(None),
-    image: UploadFile = File(...)
+    image: UploadFile = File(...),
+    style: str = Form("normal")  # 添加風格參數，默認為 normal
 ):
     """
     綜合服務：分析圖片、優化內容並計算碳足跡
 
     - **description**: 商品描述文字
     - **image**: 商品圖片檔案
+    - **style**: 文案風格，可選值：normal(標準專業)、fun(輕鬆活潑)、meme(網路迷因)、formal(正式商務)、story(故事體驗)
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
-    logger.info(f"接收綜合服務請求: 圖片={image.filename}, 描述預覽={desc_preview}")
+    logger.info(f"接收綜合服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}")
 
     try:
         # 保存上傳的圖片到臨時文件
@@ -183,9 +191,9 @@ async def combined_service_endpoint(
             combined_description = f"{combined_description}\n\n圖片分析結果:\n{image_analysis_text}"
 
         # 並行執行多個非同步操作
-        logger.info(f"開始並行執行內容優化和碳足跡計算")
+        logger.info(f"開始並行執行內容優化和碳足跡計算，使用風格: {style}")
         optimized_content, carbon_results = await asyncio.gather(
-            generate_product_content(combined_description),
+            generate_product_content(combined_description, style=style),  # 傳遞風格參數
             calculate_carbon_footprint_async(combined_description)
         )
         logger.info(f"綜合服務處理完成")
