@@ -5,7 +5,7 @@ import json
 import os
 from dotenv import load_dotenv
 import asyncio
-from typing import Optional, Dict, List, Union, Any
+from typing import Optional, Dict, Any
 
 # 設置 tokenizers 並行處理環境變數
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
