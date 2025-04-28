@@ -237,7 +237,7 @@ def print_product_content(output: dict):
     )
 
 async def main():
-    product_description = "samsung Galaxy S21 256GB 紫色"
+    product_description = "rom&nd 迷霧軟糖唇釉 5g"
     print(f"\n開始為商品「{product_description}」生成優化內容")
     print("正在使用 AI 代理進行網路搜尋和分析，這可能需要一些時間...\n")
     

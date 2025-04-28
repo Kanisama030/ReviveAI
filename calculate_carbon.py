@@ -26,10 +26,26 @@ async def calculate_carbon_footprint_async(product_description: str) -> dict:
     """使用 AI 計算碳足跡並返回結果 (非同步版本)"""
     # 使用 AI 搜尋產品
     search_results = await ai_search_products(product_description)
-
+    
     # 檢查是否有錯誤
     if "error" in search_results:
-        return {"error": search_results["error"]}
+        # 返回錯誤訊息，但包含一個預設的環境效益資訊，避免前端顯示問題
+        default_benefits = calculate_environmental_benefits(0)
+        return {
+            "error": search_results["error"],
+            "search_params": search_results.get('search_params', {}),
+            "selected_product": {
+                "product_name": "未找到匹配產品",
+                "company": "未知",
+                "carbon_footprint": 0,
+                "sector": "未知",
+                "similarity_score": 0,
+                "details": "無詳細資訊",
+                "selection_reason": "未找到匹配產品"
+            },
+            "saved_carbon": 0,
+            "environmental_benefits": default_benefits
+        }
 
     # 直接從搜尋結果中獲取最佳匹配產品
     best_product = search_results["best_product"]
@@ -45,8 +61,8 @@ async def calculate_carbon_footprint_async(product_description: str) -> dict:
         "search_params": search_results.get('search_params', {}),
         "selected_product": best_product,
         "saved_carbon": saved_carbon,
-        "environmental_benefits": benefits,
-        "selection_reason": best_product['selection_reason']
+        "environmental_benefits": benefits
+        # 移除這裡的重複 selection_reason，因為已經包含在 best_product 中
     }
 
 
@@ -70,7 +86,7 @@ def print_results(results: dict) -> None:
     print(f"• 相當於減少開車 {benefits['car_km']} 公里的碳排放")
     print(f"• 相當於減少吹冷氣 {benefits['ac_hours']} 小時的碳排放")
     print(f"• 相當於幫手機充電 {benefits['phone_charges']} 次的碳排放")
-    print(f"\n選擇原因: {results['selection_reason']}")
+    print(f"\n選擇原因: {product['selection_reason']}")
 
 if __name__ == "__main__":
     # 示例查詢

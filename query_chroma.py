@@ -102,7 +102,7 @@ async def ai_search_products(product_description: str):
     1. 分析產品描述，識別產品類型、品牌和關鍵特徵
     2. 生成精簡有效的搜索詞彙，移除不必要的細節規格
     3. 根據產品類型自動設定正確的行業分類過濾條件
-    4. 設置碳排放量的過濾條件，排除太小或太大的值
+    4. 設置適當的碳排放量過濾條件，避免設置過高或過低的值
 
     你需要嚴格遵守以下規則：
     - 不得將 min_carbon_footprint 設為 0，因為這沒有過濾效果
@@ -140,10 +140,11 @@ async def ai_search_products(product_description: str):
     * 鋼材（每公斤）：最低約1
     * 木材（每公斤）：最低約0.2
 
-    - 家居用品 (Home durables, textiles, & equipment)：
-    * 家具（每件）：最低約20
-    * 廚房電器：最低約50
-    * 紡織品（每件）：最低約5
+    - 家居用品與紡織品 (Home durables, textiles, & equipment)：
+    * 家具（每件）：一般為 20-100
+    * 廚房電器：一般為 50-300
+    * 紡織品/衣物（每件）：一般為 5-30
+    * 鞋類（每雙）：一般為 10-30
     """
 
     # 調用 AI 進行查詢準備
@@ -151,7 +152,7 @@ async def ai_search_products(product_description: str):
         model="gpt-4.1-nano",
         input=[
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"你的任務是找這個產品的碳足跡資訊：{product_description}，你需要將此描述轉換為最佳搜尋參數，以便在Chroma向量碳足跡資料庫中找到最相關的結果。你需要推測產品的行業類別並加入適當的過濾條件。"}
+            {"role": "user", "content": f"你的任務是找這個產品的碳足跡資訊：{product_description}，你需要將此描述轉換為最佳搜尋參數，以便在Chroma向量碳足跡資料庫中找到最相關的結果。請設定合理的碳足跡過濾範圍，避免查不到結果。記得根據產品類型選擇正確的行業分類。"}
         ],
         tools=tools
     )
@@ -195,15 +196,25 @@ async def ai_search_products(product_description: str):
             where=where
         )
 
-        # 使用 GPT 重新排序結果
-        reranked_result = await gpt_rerank_async(product_description, results)
+        # 檢查是否有搜尋結果
+        if not results['ids'][0] or len(results['ids'][0]) == 0:
+            return {"error": "沒有找到符合條件的產品"}
+        # 使用 GPT 重新排序結果（簡化錯誤處理）
+        try:
+            reranked_result = await gpt_rerank_async(product_description, results)
+            best_index = reranked_result.get("best_match_index", 0)
 
-        # 檢查是否有重新排序錯誤
-        if "error" in reranked_result:
-            return {"error": reranked_result["error"]}
-
-        # 直接提取最佳匹配的產品
-        best_index = reranked_result["best_match_index"]
+            # 簡單檢查索引是否有效
+            if best_index < 0 or best_index >= len(results['ids'][0]):
+                best_index = 0
+                selection_reason = "索引無效，使用相似度最高的結果"
+            else:
+                selection_reason = reranked_result.get("reason", "使用 GPT 選擇的結果")
+        except Exception as e:
+            # 出現任何錯誤時，預設使用第一個結果
+            best_index = 0
+            selection_reason = "重排序過程出錯，使用相似度最高的結果"
+            reranked_result = {"best_match_index": 0, "reason": selection_reason}
 
         # 準備結果物件
         best_match = {
@@ -213,7 +224,7 @@ async def ai_search_products(product_description: str):
             "sector": results['metadatas'][0][best_index].get('sector', '未知'),
             "similarity_score": results['distances'][0][best_index],
             "details": results['documents'][0][best_index],
-            "selection_reason": reranked_result["reason"]
+            "selection_reason": selection_reason
         }
 
         # 返回包含搜尋參數、原始結果、重新排序結果和最佳匹配產品的完整結果
@@ -226,7 +237,9 @@ async def ai_search_products(product_description: str):
 
     except (json.JSONDecodeError, KeyError) as e:
         return {"error": f"解析函數參數錯誤: {str(e)}"}
-    
+    except Exception as e:
+        return {"error": f"搜尋過程中發生錯誤: {str(e)}"}
+
 
 async def gpt_rerank_async(query: str, results: dict):
     """
@@ -261,18 +274,20 @@ async def gpt_rerank_async(query: str, results: dict):
 
         你的任務是：
         1. 先從產品描述中識別出查詢的產品類型，再從候選產品中識別出每個產品的類型，然後嚴格按照產品類型進行匹配。
-        2. 選擇前請詳細分析每個產品的資訊，特別是產品名稱和詳細描述。
+        2. 選擇前請詳細分析每個產品的資訊，特別是產品名稱和詳細描述。永遠要選擇一個最佳候選產品，即使沒有完美匹配，也要選擇功能最相近的產品。
         3. 請給予簡短且清楚的 40 字以內的理由說明為何選擇該產品。
 
         【重要】產品類型必須嚴格匹配，這是所有條件中最優先的要求：
         - 如果查詢是筆記型電腦，你必須選擇筆記型電腦，絕對不可選擇列印機、鍵盤等其他類型產品
         - 如果查詢是手機，你必須選擇手機，絕對不可選擇平板、耳機等其他類型產品
         - 如果產品類型不匹配（例如查詢筆記型電腦但候選只有列印機），請選擇功能最接近的產品
+        - 當選擇不完美時，請誠實寫出不盡相同但功能較接近的原因
 
-        在完成產品類型匹配後，請按以下優先順序考慮其他因素：
-        1. 產品品牌的匹配度（例如：查詢Apple產品時，優先選擇Apple品牌）
-        2. 產品規格的相似度（例如：存儲容量、處理器性能等）
-        3. 碳足跡數值的合理性（避免選擇碳足跡異常高或異常低的產品）
+        在考慮候選產品時，請按以下優先順序考慮：
+        1. 產品類型（例如：鞋子、筆記型電腦、手機等）
+        2. 產品功能相似度
+        3. 品牌相似度（有相同品牌最好，但功能相似更重要）
+        4. 碳足跡數值的合理性
         """
 
     # 調用 GPT (非同步)
@@ -310,8 +325,10 @@ async def gpt_rerank_async(query: str, results: dict):
     try:
         result = json.loads(response.output_text)
         return result
-    except (json.JSONDecodeError, AttributeError):
-        return {"error": "無法解析 GPT 回應"}
+    except (json.JSONDecodeError, AttributeError) as e:
+        return {"error": f"無法解析 GPT 回應: {str(e)}"}
+    except Exception as e:
+        return {"error": f"GPT 重新排序過程中發生錯誤: {str(e)}"}
 
 
 # 主函數
