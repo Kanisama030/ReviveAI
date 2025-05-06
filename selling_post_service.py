@@ -4,6 +4,7 @@ import os
 import time
 import asyncio
 from agent_client import search_product_info
+from templates.selling_styles import SELLING_STYLES
 
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -13,6 +14,7 @@ async def generate_selling_post(
     price: str, 
     contact_info: str = "請私訊詳詢",
     trade_method: str = "面交/郵寄皆可",
+    style: str = "normal"  # 使用 selling_styles.py 中的風格
 ) -> dict:
     """
     生成適合社群平台發布的二手商品銷售文案
@@ -22,10 +24,17 @@ async def generate_selling_post(
         price (str): 售價
         contact_info (str): 聯絡方式
         trade_method (str): 交易方式
+        style (str): 文案風格
     Returns:
         dict: 包含生成的社群銷售文案的字典
     """
+    # 確保選擇的風格有效，否則使用默認風格
+    if style not in SELLING_STYLES:
+        style = "normal"
     
+    # 獲取對應的風格模板
+    style_template = SELLING_STYLES[style]
+
     search_start = time.time()
     
     # 獲取商品網路資訊
@@ -37,7 +46,7 @@ async def generate_selling_post(
     gpt_start = time.time()
     
     # 系統提示詞，專為社群平台發文設計
-    system_message = """
+    system_message = f"""
     #zh-tw
     你是專業的社群平台二手商品銷售文案專家。
 
@@ -48,6 +57,14 @@ async def generate_selling_post(
     4. 適量使用表情符號增加親和力
     5. 突出商品狀況、價格和交易方式等實用信息
     6. 突出購買二手商品的環保價值
+
+    【{style_template["name"]}風格指引】
+    {style_template["system_prompt"]}
+
+    【範例參考】
+    {style_template["examples"][0]},
+    {style_template["examples"][1]}
+
 
     【文案結構指引】
     - 開頭簡短吸引注意力，可使用輕鬆的問候或引言
@@ -74,6 +91,7 @@ async def generate_selling_post(
     {search_results}
     
     請根據以上所有資訊，創建一段適合在社群平台(如Facebook、Instagram等)發佈的二手商品銷售文案。
+    依照系統提示中的【{style_template["name"]}風格指引】來撰寫。
     文案風格要自然、口語化，避免商業感，就像朋友之間分享一樣。
     文案不需要分段，應該是一段連貫的文字。
     請確保包含售價、聯絡方式和交易方式等重要資訊。

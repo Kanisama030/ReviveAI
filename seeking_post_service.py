@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 import os
 import time
 import asyncio
+from templates.seeking_styles import SEEKING_STYLES
 
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -15,7 +16,7 @@ async def generate_seeking_post(
     location: str = "台北市",
     seeking_type: str = "buy",  # "buy" 或 "rent"
     deadline: str = "越快越好",
-    style: str = "normal"  # 參考 content_styles.py 風格
+    style: str = "normal"  # 參考 seeking_styles.py 風格
 ) -> dict:
     """
     生成適合社群平台發布的二手商品徵求文案
@@ -32,7 +33,13 @@ async def generate_seeking_post(
     Returns:
         dict: 包含生成的社群徵品文案的字典
     """
-        
+    # 確保選擇的風格有效，否則使用默認風格
+    if style not in SEEKING_STYLES:
+        style = "normal"
+    
+    # 獲取對應的風格模板
+    style_template = SEEKING_STYLES[style]
+
     # 系統提示詞，專為徵品文案設計
     system_message = f"""
     #zh-tw
@@ -48,10 +55,13 @@ async def generate_seeking_post(
     【徵求類型差異】
     {'- 租借型：強調暫時性需求，說明使用時間，強調物盡其用、資源共享的永續理念' if seeking_type == 'rent' else '- 購買型：強調長期需求，說明使用計畫，強調二手選購減少新品生產的環保價值'}
 
-    【{style}風格指引】
-    - 使用{style}風格的語言和表達方式
-    - 適度調整表情符號使用頻率和句式
+    【{style_template["name"]}風格指引】
+    {style_template["system_prompt"]}
 
+    【範例參考】
+    {style_template["examples"][0]},
+    {style_template["examples"][1]}
+    
     【文案結構】
     - 開頭：友善問候 + 簡短自我介紹 + 徵求目的
     - 中間：詳細描述需求（品項/規格/狀況）+ 使用目的
@@ -82,6 +92,7 @@ async def generate_seeking_post(
     文案風格要自然、親切有對話感，就像朋友之間分享一樣。
     文案不需要分段，應該是一段連貫的文字。
     請確保包含徵求目的、期望價格、聯絡方式和交易地點等重要資訊。
+    依照系統提示中的【{style_template["name"]}風格指引】來撰寫。
     以輕鬆有趣的方式簡短呈現{'租借共享' if seeking_type == 'rent' else '購買二手商品'}的環保價值。
     適當使用表情符號增加親和力，結尾加上2-3個相關hashtag。
     """

@@ -165,7 +165,7 @@ async def combined_online_sale_endpoint(
 
     - **description**: 商品描述文字
     - **image**: 商品圖片檔案
-    - **style**: 文案風格，可選值：normal(標準專業)、fun(輕鬆活潑)、meme(網路迷因)、formal(正式商務)、story(故事體驗)
+    - **style**: 文案風格，可選值：normal(標準專業)、casual(輕鬆活潑)、formal(正式商務)、story(故事體驗)
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
     logger.info(f"接收拍賣網站文案服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}")
@@ -217,7 +217,9 @@ async def combined_selling_post_endpoint(
     image: UploadFile = File(...),
     price: str = Form(...),
     contact_info: str = Form("請私訊詳詢"),
-    trade_method: str = Form("面交/郵寄皆可")
+    trade_method: str = Form("面交/郵寄皆可"),
+    style: str = Form("normal") 
+
 ):
     """
     社群銷售貼文服務：分析圖片、計算碳足跡並生成社群平台銷售文案
@@ -227,6 +229,7 @@ async def combined_selling_post_endpoint(
     - **price**: 商品售價
     - **contact_info**: 聯絡方式
     - **trade_method**: 交易方式
+    - **style**: 文案風格，可選值:normal (標準實用)、storytelling (故事體驗)、minimalist (簡約精要)、bargain (超值優惠)
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
     logger.info(f"接收社群銷售貼文服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 價格={price}")
@@ -250,14 +253,16 @@ async def combined_selling_post_endpoint(
             combined_description = f"商品資訊：\n{combined_description}\n\n圖片分析結果:\n{image_analysis_text}"
         
         # 並行執行多個非同步操作
-        logger.info(f"開始並行生成社群文案和碳足跡計算")
+        logger.info(f"開始並行生成社群銷售文案和碳足跡計算")
+        logger.info(f"開始生成徵品文案，使用風格: {style}")
         selling_post_result, carbon_results = await asyncio.gather(
             generate_selling_post(
                 product_description=combined_description,
                 price=price,
                 contact_info=contact_info,
                 trade_method=trade_method,
-            ),  # 先不傳遞風格參數
+                style=style
+            ),  
             calculate_carbon_footprint_async(combined_description)
         )
 
@@ -301,7 +306,7 @@ async def combined_seeking_post_endpoint(
     - **seeking_type**: 徵求類型，購買(buy)或租借(rent)
     - **deadline**: 徵求時效
     - **image**: 參考圖片檔案 (可選)
-    - **style**: 文案風格
+    - **style**: 文案風格，可選值:normal (標準親切)、urgent (急需緊急)、 budget (預算有限)、collector (收藏愛好)
     """
     desc_preview = product_description[:50] + "..." if len(product_description) > 50 else product_description
     logger.info(f"接收社群徵品貼文服務請求: 描述預覽={desc_preview}, 類型={seeking_type}")
