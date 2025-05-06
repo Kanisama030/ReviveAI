@@ -5,7 +5,6 @@ import os
 import logging
 from typing import Optional, Dict, Any
 import asyncio
-from templates.content_styles import CONTENT_STYLES
 
 # 獲取日誌記錄器
 logger = logging.getLogger("reviveai_api")
@@ -15,7 +14,7 @@ from image_service import analyze_image
 from content_service import generate_product_content
 from agent_client import search_product_info
 from calculate_carbon import calculate_carbon_footprint_async
-from social_content_service import generate_social_content
+from selling_post_service import generate_selling_post
 
 # 建立 Router
 router = APIRouter(
@@ -154,21 +153,21 @@ async def carbon_calculation_endpoint(request: CarbonCalculationRequest):
             error=str(e)
         )
 
-@router.post("/combined_service", response_model=ApiResponse)
-async def combined_service_endpoint(
+@router.post("/combined_online_sale", response_model=ApiResponse)
+async def combined_online_sale_endpoint(
     description: str = Form(None),
     image: UploadFile = File(...),
     style: str = Form("normal")  # 添加風格參數，默認為 normal
 ):
     """
-    綜合服務：分析圖片、優化內容並計算碳足跡
+    拍賣網站文案服務：分析圖片、優化內容並計算碳足跡
 
     - **description**: 商品描述文字
     - **image**: 商品圖片檔案
     - **style**: 文案風格，可選值：normal(標準專業)、fun(輕鬆活潑)、meme(網路迷因)、formal(正式商務)、story(故事體驗)
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
-    logger.info(f"接收綜合服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}")
+    logger.info(f"接收拍賣網站文案服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}")
 
     try:
         # 保存上傳的圖片到臨時文件
@@ -194,7 +193,7 @@ async def combined_service_endpoint(
             generate_product_content(combined_description, style=style),  # 傳遞風格參數
             calculate_carbon_footprint_async(combined_description)
         )
-        logger.info(f"綜合服務處理完成")
+        logger.info(f"拍賣網站文案服務處理完成")
 
         return ApiResponse(
             success=True,
@@ -205,14 +204,14 @@ async def combined_service_endpoint(
             }
         )
     except Exception as e:
-        logger.error(f"綜合服務處理失敗: {str(e)}", exc_info=True)
+        logger.error(f"拍賣網站文案服務處理失敗: {str(e)}", exc_info=True)
         return ApiResponse(
             success=False,
             error=str(e)
         )
 
-@router.post("/combined_social_service", response_model=ApiResponse)
-async def combined_social_service_endpoint(
+@router.post("/combined_selling_post", response_model=ApiResponse)
+async def combined_selling_post_endpoint(
     description: str = Form(None),
     image: UploadFile = File(...),
     price: str = Form(...),
@@ -220,7 +219,7 @@ async def combined_social_service_endpoint(
     trade_method: str = Form("面交/郵寄皆可")
 ):
     """
-    社群綜合服務：分析圖片、計算碳足跡並生成社群平台銷售文案
+    社群銷售貼文服務：分析圖片、計算碳足跡並生成社群平台銷售文案
 
     - **description**: 商品描述文字
     - **image**: 商品圖片檔案
@@ -229,7 +228,7 @@ async def combined_social_service_endpoint(
     - **trade_method**: 交易方式
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
-    logger.info(f"接收社群綜合服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 價格={price}")
+    logger.info(f"接收社群銷售貼文服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 價格={price}")
 
     try:
         # 保存上傳的圖片到臨時文件
@@ -251,8 +250,8 @@ async def combined_social_service_endpoint(
         
         # 並行執行多個非同步操作
         logger.info(f"開始並行生成社群文案和碳足跡計算")
-        social_content_result, carbon_results = await asyncio.gather(
-            generate_social_content(
+        selling_post_result, carbon_results = await asyncio.gather(
+            generate_selling_post(
                 product_description=combined_description,
                 price=price,
                 contact_info=contact_info,
@@ -261,18 +260,18 @@ async def combined_social_service_endpoint(
             calculate_carbon_footprint_async(combined_description)
         )
 
-        logger.info(f"社群綜合服務處理完成")
+        logger.info(f"社群銷售貼文服務處理完成")
 
         return ApiResponse(
             success=True,
             data={
                 "image_analysis": image_analysis_text,
-                "social_content": social_content_result["social_content"],
+                "selling_post": selling_post_result["selling_post"],
                 "carbon_footprint": carbon_results
             }
         )
     except Exception as e:
-        logger.error(f"社群綜合服務處理失敗: {str(e)}", exc_info=True)
+        logger.error(f"社群銷售貼文服務處理失敗: {str(e)}", exc_info=True)
         return ApiResponse(
             success=False,
             error=str(e)

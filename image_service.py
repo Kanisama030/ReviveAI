@@ -49,7 +49,7 @@ async def analyze_image(image_path):
     start = time.time()  
 
     response = await client.responses.create(
-        model="gpt-4.1-mini",
+        model="gpt-4.1-nano",
         input=[
             {         
                 "role": "developer",

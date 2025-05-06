@@ -8,7 +8,7 @@ from agent_client import search_product_info
 load_dotenv()
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-async def generate_social_content(
+async def generate_selling_post(
     product_description: str, 
     price: str, 
     contact_info: str = "請私訊詳詢",
@@ -89,13 +89,13 @@ async def generate_social_content(
         ],
     )
     
-    social_content = {"social_content":response.output_text}
+    selling_post = {"selling_post":response.output_text}
     gpt_end = time.time()
     
     print(f"AI 搜尋網頁時間: {search_end - search_start:.2f} 秒")
     print(f"AI 生成社群文案時間: {gpt_end - gpt_start:.2f} 秒")
 
-    return social_content
+    return selling_post
 
 async def main():
     # 測試範例
@@ -108,7 +108,7 @@ async def main():
     print("正在使用 AI 代理進行網路搜尋和分析，這可能需要一些時間...\n")
     
     try:
-        result = await generate_social_content(
+        result = await generate_selling_post(
             product_description=product_description,
             price=price,
             contact_info=contact_info,
