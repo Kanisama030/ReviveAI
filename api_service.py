@@ -15,6 +15,7 @@ from content_service import generate_product_content
 from agent_client import search_product_info
 from calculate_carbon import calculate_carbon_footprint_async
 from selling_post_service import generate_selling_post
+from seeking_post_service import generate_seeking_post
 
 # 建立 Router
 router = APIRouter(
@@ -272,6 +273,84 @@ async def combined_selling_post_endpoint(
         )
     except Exception as e:
         logger.error(f"社群銷售貼文服務處理失敗: {str(e)}", exc_info=True)
+        return ApiResponse(
+            success=False,
+            error=str(e)
+        )
+    
+@router.post("/combined_seeking_post", response_model=ApiResponse)
+async def combined_seeking_post_endpoint(
+    product_description: str = Form(...),
+    purpose: str = Form(...),
+    expected_price: str = Form(...),
+    contact_info: str = Form("請私訊詳詢"),
+    location: str = Form("台北市"),
+    seeking_type: str = Form("buy"),  # "buy" 或 "rent"
+    deadline: str = Form("越快越好"),
+    image: Optional[UploadFile] = File(None), 
+    style: str = Form("normal")
+):
+    """
+    社群徵品貼文服務：分析圖片(可選)、計算碳足跡並生成社群平台徵求文案
+    
+    - **product_description**: 徵求的商品描述
+    - **purpose**: 徵求目的/用途
+    - **expected_price**: 期望價格
+    - **contact_info**: 聯絡方式
+    - **location**: 交易地點
+    - **seeking_type**: 徵求類型，購買(buy)或租借(rent)
+    - **deadline**: 徵求時效
+    - **image**: 參考圖片檔案 (可選)
+    - **style**: 文案風格
+    """
+    desc_preview = product_description[:50] + "..." if len(product_description) > 50 else product_description
+    logger.info(f"接收社群徵品貼文服務請求: 描述預覽={desc_preview}, 類型={seeking_type}")
+
+    try:
+        image_analysis_text = ""
+
+        # 如果有上傳圖片，則進行分析
+        if image and image.filename:  # 確保 image 存在且有檔案名稱
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+                temp_file.write(await image.read())
+                temp_path = temp_file.name
+
+            logger.info(f"開始分析參考圖片")
+            image_analysis = await analyze_image(temp_path)
+            image_analysis_text = image_analysis.output_text
+
+            # 刪除臨時文件
+            os.unlink(temp_path)
+        
+        # 將參考圖片分析結果與原始描述結合 (如果有圖片分析)
+        combined_description = product_description
+        if image_analysis_text:
+            combined_description = f"徵求商品：\n{product_description}\n\n參考圖片分析:\n{image_analysis_text}"
+        
+        # 生成徵品文案
+        logger.info(f"開始生成徵品文案，使用風格: {style}")
+        seeking_post_result = await generate_seeking_post(
+            product_description=combined_description,
+            purpose=purpose,
+            expected_price=expected_price,
+            contact_info=contact_info,
+            location=location,
+            seeking_type=seeking_type,
+            deadline=deadline,
+            style=style
+        )
+
+        logger.info(f"社群徵品貼文服務處理完成")
+
+        return ApiResponse(
+            success=True,
+            data={
+                "image_analysis": image_analysis_text if image else "",
+                "seeking_post": seeking_post_result["seeking_post"]
+            }
+        )
+    except Exception as e:
+        logger.error(f"社群徵品貼文服務處理失敗: {str(e)}", exc_info=True)
         return ApiResponse(
             success=False,
             error=str(e)
