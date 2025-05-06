@@ -13,7 +13,7 @@ async def generate_seeking_post(
     purpose: str,
     expected_price: str,
     contact_info: str = "請私訊詳詢",
-    location: str = "台北市",
+    trade_method: str = "面交/郵寄皆可",
     seeking_type: str = "buy",  # "buy" 或 "rent"
     deadline: str = "越快越好",
     style: str = "normal"  # 參考 seeking_styles.py 風格
@@ -26,7 +26,7 @@ async def generate_seeking_post(
         purpose (str): 徵求目的/用途
         expected_price (str): 期望價格
         contact_info (str): 聯絡方式
-        location (str): 交易地點
+        trade_method (str): 交易方式
         seeking_type (str): 徵求類型，購買或租借
         deadline (str): 徵求時效
         style (str): 文案風格
@@ -80,8 +80,8 @@ async def generate_seeking_post(
     
     期望價格：{expected_price}
     
-    交易地點：{location}
-    
+    交易方式：{trade_method}
+
     聯絡方式：{contact_info}
     
     徵求時效：{deadline}
@@ -91,7 +91,7 @@ async def generate_seeking_post(
     請根據以上所有資訊，創建一段適合在社群平台(如Facebook、Instagram等)發佈的二手商品徵求文案。
     文案風格要自然、親切有對話感，就像朋友之間分享一樣。
     文案不需要分段，應該是一段連貫的文字。
-    請確保包含徵求目的、期望價格、聯絡方式和交易地點等重要資訊。
+    請確保包含徵求目的、期望價格、聯絡方式和交易方式等重要資訊。
     依照系統提示中的【{style_template["name"]}風格指引】來撰寫。
     以輕鬆有趣的方式簡短呈現{'租借共享' if seeking_type == 'rent' else '購買二手商品'}的環保價值。
     適當使用表情符號增加親和力，結尾加上2-3個相關hashtag。
@@ -122,7 +122,7 @@ async def main():
     purpose = "buy"
     expected_price = "10000"
     contact_info = "請私訊詳詢"
-    location = "台中市"
+    trade_method = "面交/郵寄皆可"
     seeking_type = 'buy'
     deadline = "星期五之前"
     style = "normal"
@@ -135,7 +135,7 @@ async def main():
             purpose=purpose,
             expected_price=expected_price,
             contact_info=contact_info,
-            location=location,
+            trade_method=trade_method,
             seeking_type=seeking_type,
             deadline=deadline,
             style=style,

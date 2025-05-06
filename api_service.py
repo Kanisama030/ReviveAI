@@ -289,7 +289,7 @@ async def combined_seeking_post_endpoint(
     purpose: str = Form(...),
     expected_price: str = Form(...),
     contact_info: str = Form("請私訊詳詢"),
-    location: str = Form("台北市"),
+    trade_method: str = Form("面交/郵寄皆可"),
     seeking_type: str = Form("buy"),  # "buy" 或 "rent"
     deadline: str = Form("越快越好"),
     image: Optional[UploadFile] = File(None), 
@@ -302,7 +302,7 @@ async def combined_seeking_post_endpoint(
     - **purpose**: 徵求目的/用途
     - **expected_price**: 期望價格
     - **contact_info**: 聯絡方式
-    - **location**: 交易地點
+    - **trade_method**: 交易方式
     - **seeking_type**: 徵求類型，購買(buy)或租借(rent)
     - **deadline**: 徵求時效
     - **image**: 參考圖片檔案 (可選)
@@ -339,7 +339,7 @@ async def combined_seeking_post_endpoint(
             purpose=purpose,
             expected_price=expected_price,
             contact_info=contact_info,
-            location=location,
+            trade_method=trade_method,
             seeking_type=seeking_type,
             deadline=deadline,
             style=style
