@@ -60,7 +60,7 @@ async def generate_product_content(product_description: str, style: str = "norma
 
     # 使用風格特定的系統消息
     system_message = f"""
-    #zh-tw
+    #zh-tw 使用台灣繁體中文回答。
     使用較口語的語氣，文字不要有機器人感。
     {style_template["system_prompt"]}
 

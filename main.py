@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
-import apiservice
+import api_service
 
 # 設定日誌
 logging.basicConfig(
@@ -32,7 +32,7 @@ app.add_middleware(
 )
 
 # 加入路由
-app.include_router(apiservice.router)
+app.include_router(api_service.router)
 
 # 添加簡單的中間件記錄請求
 @app.middleware("http")

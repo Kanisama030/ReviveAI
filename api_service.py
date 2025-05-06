@@ -15,6 +15,7 @@ from image_service import analyze_image
 from content_service import generate_product_content
 from agent_client import search_product_info
 from calculate_carbon import calculate_carbon_footprint_async
+from social_content_service import generate_social_content
 
 # 建立 Router
 router = APIRouter(
@@ -32,9 +33,6 @@ class ProductSearchRequest(BaseModel):
 
 class CarbonCalculationRequest(BaseModel):
     product_description: str
-
-class CombinedServiceRequest(BaseModel):
-    description: str
 
 class ApiResponse(BaseModel):
     success: bool
@@ -188,7 +186,7 @@ async def combined_service_endpoint(
         # 將圖片分析結果與原始描述結合
         combined_description = description or ""
         if image_analysis_text:
-            combined_description = f"{combined_description}\n\n圖片分析結果:\n{image_analysis_text}"
+            combined_description = f"商品資訊：\n{combined_description}\n\n圖片分析結果:\n{image_analysis_text}"
 
         # 並行執行多個非同步操作
         logger.info(f"開始並行執行內容優化和碳足跡計算，使用風格: {style}")
@@ -208,6 +206,73 @@ async def combined_service_endpoint(
         )
     except Exception as e:
         logger.error(f"綜合服務處理失敗: {str(e)}", exc_info=True)
+        return ApiResponse(
+            success=False,
+            error=str(e)
+        )
+
+@router.post("/combined_social_service", response_model=ApiResponse)
+async def combined_social_service_endpoint(
+    description: str = Form(None),
+    image: UploadFile = File(...),
+    price: str = Form(...),
+    contact_info: str = Form("請私訊詳詢"),
+    trade_method: str = Form("面交/郵寄皆可")
+):
+    """
+    社群綜合服務：分析圖片、計算碳足跡並生成社群平台銷售文案
+
+    - **description**: 商品描述文字
+    - **image**: 商品圖片檔案
+    - **price**: 商品售價
+    - **contact_info**: 聯絡方式
+    - **trade_method**: 交易方式
+    """
+    desc_preview = description[:50] + "..." if description and len(description) > 50 else description
+    logger.info(f"接收社群綜合服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 價格={price}")
+
+    try:
+        # 保存上傳的圖片到臨時文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+            temp_file.write(await image.read())
+            temp_path = temp_file.name
+
+        logger.info(f"開始分析圖片")
+        image_analysis = await analyze_image(temp_path)
+        image_analysis_text = image_analysis.output_text
+
+        # 刪除臨時文件
+        os.unlink(temp_path)
+
+        # 將圖片分析結果與原始描述結合
+        combined_description = description or ""
+        if image_analysis_text:
+            combined_description = f"商品資訊：\n{combined_description}\n\n圖片分析結果:\n{image_analysis_text}"
+        
+        # 並行執行多個非同步操作
+        logger.info(f"開始並行生成社群文案和碳足跡計算")
+        social_content_result, carbon_results = await asyncio.gather(
+            generate_social_content(
+                product_description=combined_description,
+                price=price,
+                contact_info=contact_info,
+                trade_method=trade_method,
+            ),  # 先不傳遞風格參數
+            calculate_carbon_footprint_async(combined_description)
+        )
+
+        logger.info(f"社群綜合服務處理完成")
+
+        return ApiResponse(
+            success=True,
+            data={
+                "image_analysis": image_analysis_text,
+                "social_content": social_content_result["social_content"],
+                "carbon_footprint": carbon_results
+            }
+        )
+    except Exception as e:
+        logger.error(f"社群綜合服務處理失敗: {str(e)}", exc_info=True)
         return ApiResponse(
             success=False,
             error=str(e)
