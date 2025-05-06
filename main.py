@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import logging
-import api_service
+import combined_service_api
+# import archive.single_service_api  # 已封存，暫不使用
 
 # 設定日誌
 logging.basicConfig(
@@ -31,8 +32,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 加入路由
-app.include_router(api_service.router)
+# 加入路由 - 只使用組合服務路由
+app.include_router(combined_service_api.router)
+# app.include_router(archive.single_service_api.router)  # 已封存，單一功能 router
 
 # 添加簡單的中間件記錄請求
 @app.middleware("http")
