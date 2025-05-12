@@ -1,12 +1,36 @@
 import chromadb
 import pandas as pd
+import os
+import shutil
+import time
 from chromadb.utils import embedding_functions
+from dotenv import load_dotenv
+import sys
 
-chroma_client = chromadb.PersistentClient(path="/Users/chenyirui/Project/ReviveAI/data/chroma")
+# 載入環境變數
+load_dotenv()
 
+# 設定 ChromaDB 路徑
+CHROMA_PATH = "E:/Projects/ReviveAI/data/chroma"
 
-sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="BAAI/bge-m3"
+# 刪除現有的 ChromaDB (如果存在)
+if os.path.exists(CHROMA_PATH):
+    print(f"正在刪除現有的 ChromaDB: {CHROMA_PATH}")
+    try:
+        shutil.rmtree(CHROMA_PATH)
+        print("已刪除現有的 ChromaDB")
+    except Exception as e:
+        print(f"刪除資料庫時發生錯誤: {e}")
+        sys.exit(1)
+
+# 創建一個新的持久化客戶端
+chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+
+# 使用 OpenAI 的嵌入模型
+openai_ef = embedding_functions.OpenAIEmbeddingFunction(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    model_name="text-embedding-3-small",
+    dimensions=1024
 )
 
 def prepare_product_text(row):
@@ -27,12 +51,12 @@ def prepare_product_text(row):
     return text
 
 
-df = pd.read_csv("/Users/chenyirui/Project/ReviveAI/data/cleaned_carbon_catalogue.csv")
+df = pd.read_csv("E:/Projects/ReviveAI/data/cleaned_carbon_catalogue.csv")
 
 # Create a collection
 collection = chroma_client.create_collection(
     name="carbon_catalogue", 
-    embedding_function=sentence_transformer_ef,
+    embedding_function=openai_ef,
     metadata={
         "hnsw:space": "cosine",
         "hnsw:search_ef": 100
