@@ -47,4 +47,4 @@ async def log_requests(request, call_next):
 # 啟動服務器
 if __name__ == "__main__":
     logger.info("ReviveAI API 服務啟動中...")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False,log_level="info")
