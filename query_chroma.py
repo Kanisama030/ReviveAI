@@ -14,7 +14,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 load_dotenv()
 
 # 連接到現有的 Chroma 資料庫
-chroma_client = chromadb.PersistentClient(path="/Users/chenyirui/Project/ReviveAI/data/chroma")
+chroma_client = chromadb.PersistentClient(path="E:\Projects\ReviveAI\data\chroma")
 
 # 使用相同的 embedding 函數
 sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
