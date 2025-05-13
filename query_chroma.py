@@ -224,7 +224,7 @@ async def ai_search_products(product_description: str):
             "company": results['metadatas'][0][best_index]['company'],
             "carbon_footprint": float(results['metadatas'][0][best_index]['carbon_footprint']),
             "sector": results['metadatas'][0][best_index].get('sector', '未知'),
-            "similarity_score": results['distances'][0][best_index],
+            "cosine_distance": results['distances'][0][best_index],
             "details": results['documents'][0][best_index],
             "selection_reason": selection_reason
         }
@@ -263,7 +263,7 @@ async def gpt_rerank_async(query: str, results: dict):
             "company": metadata['company'],
             "carbon_footprint": metadata['carbon_footprint'],
             "sector": metadata.get('sector', '未知'),
-            "similarity_score": results['distances'][0][i],
+            "cosine_distance": results['distances'][0][i],
             "details": doc
         })
 
@@ -355,7 +355,7 @@ async def main():
         print(f"公司: {best_product['company']}")
         print(f"產業類別: {best_product['sector']}")
         print(f"碳足跡: {best_product['carbon_footprint']} kg CO2e")
-        print(f"相似度分數: {best_product['similarity_score']:.4f}")
+        print(f"相似度分數: {1 - best_product['cosine_distance']:.4f}")
         print(f"詳細信息: {best_product['details']}")
         print(f"\n選擇原因: {best_product['selection_reason']}")
 
@@ -365,7 +365,7 @@ async def main():
         print(f"\n{i+1}. 產品名稱: {metadata['product_name']}")
         print(f"   碳足跡: {metadata['carbon_footprint']} kg CO2e")
         print(f"   產業類別: {metadata.get('sector', '未知')}")
-        print(f"   相似度分數: {search_results['raw_results']['distances'][0][i]:.4f}")
+        print(f"   相似度分數: {1 - search_results['raw_results']['distances'][0][i]:.4f}")
 
 if __name__ == "__main__":
     asyncio.run(main())
