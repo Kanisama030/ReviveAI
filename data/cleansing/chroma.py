@@ -2,7 +2,6 @@ import chromadb
 import pandas as pd
 import os
 import shutil
-import time
 from chromadb.utils import embedding_functions
 from dotenv import load_dotenv
 import sys

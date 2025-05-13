@@ -14,7 +14,8 @@ async def generate_selling_post(
     price: str, 
     contact_info: str = "請私訊詳詢",
     trade_method: str = "面交/郵寄皆可",
-    style: str = "normal"  # 使用 selling_styles.py 中的風格
+    style: str = "normal",  # 使用 selling_styles.py 中的風格
+    stream: bool = False    # 新增串流參數
 ) -> dict:
     """
     生成適合社群平台發布的二手商品銷售文案
@@ -25,8 +26,9 @@ async def generate_selling_post(
         contact_info (str): 聯絡方式
         trade_method (str): 交易方式
         style (str): 文案風格
+        stream (bool): 是否使用串流回應
     Returns:
-        dict: 包含生成的社群銷售文案的字典
+        dict: 包含生成的社群銷售文案的字典，或者是串流響應物件
     """
     # 確保選擇的風格有效，否則使用默認風格
     if style not in SELLING_STYLES:
@@ -99,19 +101,42 @@ async def generate_selling_post(
     適當使用表情符號增加親和力，結尾加上2-3個相關hashtag。
     """
     
-    response = await client.responses.create(
-        model="gpt-4.1-nano",
-        input=[
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": prompt}
-        ],
-    )
-    
-    selling_post = {"selling_post":response.output_text}
-    gpt_end = time.time()
-    
-    print(f"AI 搜尋網頁時間: {search_end - search_start:.2f} 秒")
-    print(f"AI 生成社群文案時間: {gpt_end - gpt_start:.2f} 秒")
+    if stream:
+        # 串流模式
+        async def stream_response():
+            streaming_response = await client.chat.completions.create(
+                model="gpt-4.1-nano",
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": prompt}
+                ],
+                stream=True
+            )
+            
+            async for chunk in streaming_response:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+            gpt_end = time.time()
+            print(f"AI 搜尋網頁時間: {search_end - search_start:.2f} 秒")
+            print(f"AI 生成社群文案時間: {gpt_end - gpt_start:.2f} 秒")
+        
+        return stream_response
+    else:
+        # 非串流模式 (原有功能)
+        response = await client.chat.completions.create(
+            model="gpt-4.1-nano",
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": prompt}
+            ],
+        )
+        
+        selling_post = {"selling_post": response.choices[0].message.content}
+        gpt_end = time.time()
+        
+        print(f"AI 搜尋網頁時間: {search_end - search_start:.2f} 秒")
+        print(f"AI 生成社群文案時間: {gpt_end - gpt_start:.2f} 秒")
 
     return selling_post
 

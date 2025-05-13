@@ -5,6 +5,8 @@ import os
 import logging
 from typing import Optional, Dict, Any
 import asyncio
+import json
+from fastapi.responses import StreamingResponse
 
 # 獲取日誌記錄器
 logger = logging.getLogger("reviveai_api")
@@ -86,14 +88,15 @@ async def combined_online_sale_endpoint(
             error=str(e)
         )
 
-@router.post("/selling_post", response_model=ApiResponse)
+@router.post("/selling_post")
 async def combined_selling_post_endpoint(
     description: str = Form(None),
     image: UploadFile = File(...),
     price: str = Form(...),
     contact_info: str = Form("請私訊詳詢"),
     trade_method: str = Form("面交/郵寄皆可"),
-    style: str = Form("normal") 
+    style: str = Form("normal"),
+    stream: bool = Form(False)  # 新增串流選項
 ):
     """
     社群銷售貼文服務：分析圖片、計算碳足跡並生成社群平台銷售文案
@@ -104,9 +107,10 @@ async def combined_selling_post_endpoint(
     - **contact_info**: 聯絡方式
     - **trade_method**: 交易方式
     - **style**: 文案風格，可選值:normal (標準實用)、storytelling (故事體驗)、minimalist (簡約精要)、bargain (超值優惠)
+    - **stream**: 是否使用串流回應（預設為 false）
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
-    logger.info(f"接收社群銷售貼文服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 價格={price}")
+    logger.info(f"接收社群銷售貼文服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 價格={price}, 串流={stream}")
 
     try:
         # 保存上傳的圖片到臨時文件
@@ -126,30 +130,81 @@ async def combined_selling_post_endpoint(
         if image_analysis_text:
             combined_description = f"商品資訊：\n{combined_description}\n\n圖片分析結果:\n{image_analysis_text}"
         
-        # 並行執行多個非同步操作
-        logger.info(f"開始並行生成社群銷售文案和碳足跡計算")
-        logger.info(f"開始生成銷售文案，使用風格: {style}")
-        selling_post_result, carbon_results = await asyncio.gather(
-            generate_selling_post(
+        # 開始碳足跡計算 (不管是否串流，都先開始計算，實現並行處理)
+        logger.info(f"開始計算碳足跡")
+        carbon_task = asyncio.create_task(calculate_carbon_footprint_async(combined_description))
+        
+        if stream:
+            # 串流模式處理
+            logger.info(f"開始生成串流式銷售文案，使用風格: {style}")
+            
+            # 獲取生成器函數
+            stream_generator = await generate_selling_post(
                 product_description=combined_description,
                 price=price,
                 contact_info=contact_info,
                 trade_method=trade_method,
-                style=style
-            ),  
-            calculate_carbon_footprint_async(combined_description)
-        )
+                style=style,
+                stream=True
+            )
+            
+            # 等待碳足跡計算完成
+            carbon_results = await carbon_task
+
+            # 創建一個生成器函數，首先發送其他數據，然後串流文案內容
+            async def response_generator():
+                # 首先發送初始數據（圖片分析和碳足跡）
+                initial_data = {
+                    "type": "metadata",
+                    "image_analysis": image_analysis_text,
+                    "carbon_footprint": carbon_results
+                }
+                yield json.dumps(initial_data) + "\n"
+                
+                # 然後串流文案內容
+                async for content in stream_generator():
+                    chunk_data = {
+                        "type": "content",
+                        "chunk": content
+                    }
+                    yield json.dumps(chunk_data) + "\n"
+                
+                # 結束標記
+                yield json.dumps({"type": "end"}) + "\n"
+            
+            logger.info(f"返回串流回應")
+            return StreamingResponse(
+                response_generator(),
+                media_type="application/json"
+            )
+        else:
+            # 非串流模式（原有功能）
+            logger.info(f"開始生成銷售文案，使用風格: {style}")
+            selling_post_task = asyncio.create_task(generate_selling_post(
+                product_description=combined_description,
+                price=price,
+                contact_info=contact_info,
+                trade_method=trade_method,
+                style=style,
+                stream=False
+            ))
+            # 等待兩個任務完成
+            selling_post_result, carbon_results = await asyncio.gather(
+                selling_post_task,
+                carbon_task
+            )
 
         logger.info(f"社群銷售貼文服務處理完成")
 
         return ApiResponse(
-            success=True,
-            data={
-                "image_analysis": image_analysis_text,
-                "selling_post": selling_post_result["selling_post"],
-                "carbon_footprint": carbon_results
-            }
-        )
+                success=True,
+                data={
+                    "image_analysis": image_analysis_text,
+                    "selling_post": selling_post_result["selling_post"],
+                    "carbon_footprint": carbon_results
+                }
+            )
+        
     except Exception as e:
         logger.error(f"社群銷售貼文服務處理失敗: {str(e)}", exc_info=True)
         return ApiResponse(
