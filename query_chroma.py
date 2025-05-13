@@ -14,7 +14,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 load_dotenv()
 
 # 連接到現有的 Chroma 資料庫
-chroma_client = chromadb.PersistentClient(path="E:/Projects/ReviveAI/data/chroma")
+chroma_client = chromadb.PersistentClient(path=os.getenv("CHROMA_PATH"))
 
 # 使用 OpenAI 的嵌入模型
 openai_ef = embedding_functions.OpenAIEmbeddingFunction(

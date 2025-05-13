@@ -16,3 +16,5 @@ credentials/
 .ropeproject
 
 .ipynb_checkpoints
+
+requirements.in
