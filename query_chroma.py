@@ -14,17 +14,19 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 load_dotenv()
 
 # 連接到現有的 Chroma 資料庫
-chroma_client = chromadb.PersistentClient(path="/Users/chenyirui/Project/ReviveAI/data/chroma")
+chroma_client = chromadb.PersistentClient(path=os.getenv("CHROMA_PATH"))
 
-# 使用相同的 embedding 函數
-sentence_transformer_ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="BAAI/bge-m3"
+# 使用 OpenAI 的嵌入模型
+openai_ef = embedding_functions.OpenAIEmbeddingFunction(
+    api_key=os.getenv("OPENAI_API_KEY"),
+    model_name="text-embedding-3-small",
+    dimensions=1024
 )
 
 # 獲取現有的 collection
 collection = chroma_client.get_collection(
     name="carbon_catalogue",
-    embedding_function=sentence_transformer_ef
+    embedding_function=openai_ef
 )
 
 # 初始化 OpenAI 客戶端
