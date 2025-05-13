@@ -194,16 +194,16 @@ async def combined_selling_post_endpoint(
                 carbon_task
             )
 
-        logger.info(f"社群銷售貼文服務處理完成")
+            logger.info(f"社群銷售貼文服務處理完成")
 
-        return ApiResponse(
-                success=True,
-                data={
-                    "image_analysis": image_analysis_text,
-                    "selling_post": selling_post_result["selling_post"],
-                    "carbon_footprint": carbon_results
-                }
-            )
+            return ApiResponse(
+                    success=True,
+                    data={
+                        "image_analysis": image_analysis_text,
+                        "selling_post": selling_post_result["selling_post"],
+                        "carbon_footprint": carbon_results
+                    }
+                )
         
     except Exception as e:
         logger.error(f"社群銷售貼文服務處理失敗: {str(e)}", exc_info=True)
@@ -212,7 +212,7 @@ async def combined_selling_post_endpoint(
             error=str(e)
         )
     
-@router.post("/seeking_post", response_model=ApiResponse)
+@router.post("/seeking_post")
 async def combined_seeking_post_endpoint(
     product_description: str = Form(...),
     purpose: str = Form(...),
@@ -222,7 +222,8 @@ async def combined_seeking_post_endpoint(
     seeking_type: str = Form("buy"),  # "buy" 或 "rent"
     deadline: str = Form("越快越好"),
     image: Optional[UploadFile] = File(None), 
-    style: str = Form("normal")
+    style: str = Form("normal"),
+    stream: bool = Form(False)  # 新增串流選項
 ):
     """
     社群徵品貼文服務：分析圖片(可選)、計算碳足跡並生成社群平台徵求文案
@@ -236,9 +237,10 @@ async def combined_seeking_post_endpoint(
     - **deadline**: 徵求時效
     - **image**: 參考圖片檔案 (可選)
     - **style**: 文案風格，可選值:normal (標準親切)、urgent (急需緊急)、 budget (預算有限)、collector (收藏愛好)
+    - **stream**: 是否使用串流回應（預設為 false）
     """
     desc_preview = product_description[:50] + "..." if len(product_description) > 50 else product_description
-    logger.info(f"接收社群徵品貼文服務請求: 描述預覽={desc_preview}, 類型={seeking_type}")
+    logger.info(f"接收社群徵品貼文服務請求: 描述預覽={desc_preview}, 類型={seeking_type}, 串流={stream}")
 
     try:
         image_analysis_text = ""
@@ -261,28 +263,73 @@ async def combined_seeking_post_endpoint(
         if image_analysis_text:
             combined_description = f"徵求商品：\n{product_description}\n\n參考圖片分析:\n{image_analysis_text}"
         
-        # 生成徵品文案
-        logger.info(f"開始生成徵品文案，使用風格: {style}")
-        seeking_post_result = await generate_seeking_post(
-            product_description=combined_description,
-            purpose=purpose,
-            expected_price=expected_price,
-            contact_info=contact_info,
-            trade_method=trade_method,
-            seeking_type=seeking_type,
-            deadline=deadline,
-            style=style
-        )
+        if stream:
+            # 串流模式處理
+            logger.info(f"開始生成串流式徵品文案，使用風格: {style}")
+            
+            # 獲取生成器函數
+            stream_generator = await generate_seeking_post(
+                product_description=combined_description,
+                purpose=purpose,
+                expected_price=expected_price,
+                contact_info=contact_info,
+                trade_method=trade_method,
+                seeking_type=seeking_type,
+                deadline=deadline,
+                style=style,
+                stream=True
+            )
+            
+            # 創建一個生成器函數，首先發送其他數據，然後串流文案內容
+            async def response_generator():
+                # 首先發送初始數據（圖片分析）
+                initial_data = {
+                    "type": "metadata",
+                    "image_analysis": image_analysis_text
+                }
+                yield json.dumps(initial_data) + "\n"
+                
+                # 然後串流文案內容
+                async for content in stream_generator():
+                    chunk_data = {
+                        "type": "content",
+                        "chunk": content
+                    }
+                    yield json.dumps(chunk_data) + "\n"
+                
+                # 結束標記
+                yield json.dumps({"type": "end"}) + "\n"
+            
+            logger.info(f"返回串流回應")
+            return StreamingResponse(
+                response_generator(),
+                media_type="application/json"
+            )
+        else:
+            # 非串流模式（原有功能）
+            logger.info(f"開始生成徵品文案，使用風格: {style}")
+            seeking_post_result = await generate_seeking_post(
+                product_description=combined_description,
+                purpose=purpose,
+                expected_price=expected_price,
+                contact_info=contact_info,
+                trade_method=trade_method,
+                seeking_type=seeking_type,
+                deadline=deadline,
+                style=style,
+                stream=False
+            )
 
-        logger.info(f"社群徵品貼文服務處理完成")
+            logger.info(f"社群徵品貼文服務處理完成")
 
-        return ApiResponse(
-            success=True,
-            data={
-                "image_analysis": image_analysis_text if image else "",
-                "seeking_post": seeking_post_result["seeking_post"]
-            }
-        )
+            return ApiResponse(
+                    success=True,
+                    data={
+                        "image_analysis": image_analysis_text if image else "",
+                        "seeking_post": seeking_post_result["seeking_post"]
+                    }
+                )
+        
     except Exception as e:
         logger.error(f"社群徵品貼文服務處理失敗: {str(e)}", exc_info=True)
         return ApiResponse(

@@ -16,7 +16,8 @@ async def generate_seeking_post(
     trade_method: str = "面交/郵寄皆可",
     seeking_type: str = "buy",  # "buy" 或 "rent"
     deadline: str = "越快越好",
-    style: str = "normal"  # 參考 seeking_styles.py 風格
+    style: str = "normal",  # 參考 seeking_styles.py 風格
+    stream: bool = False    # 新增串流參數
 ) -> dict:
     """
     生成適合社群平台發布的二手商品徵求文案
@@ -30,8 +31,9 @@ async def generate_seeking_post(
         seeking_type (str): 徵求類型，購買或租借
         deadline (str): 徵求時效
         style (str): 文案風格
+        stream (bool): 是否使用串流回應
     Returns:
-        dict: 包含生成的社群徵品文案的字典
+        dict: 包含生成的社群徵品文案的字典，或者是串流響應物件
     """
     # 確保選擇的風格有效，否則使用默認風格
     if style not in SEEKING_STYLES:
@@ -99,21 +101,42 @@ async def generate_seeking_post(
 
     gpt_start = time.time()
 
-    # 執行 GPT 生成
-    response = await client.responses.create(
-        model="gpt-4.1-nano",
-        input=[
-            {"role": "system", "content": system_message},
-            {"role": "user", "content": prompt}
-        ],
-    )
+    if stream:
+        # 串流模式
+        async def stream_response():
+            streaming_response = await client.chat.completions.create(
+                model="gpt-4.1-nano",
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": prompt}
+                ],
+                stream=True
+            )
+            
+            async for chunk in streaming_response:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+            
+            gpt_end = time.time()
+            print(f"GPT 執行時間: {gpt_end - gpt_start:.2f} 秒")
+        
+        return stream_response
+    else:
+        # 非串流模式 (改為使用 chat.completions API)
+        response = await client.chat.completions.create(
+            model="gpt-4.1-nano",
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": prompt}
+            ],
+        )
+        
+        seeking_post = {"seeking_post": response.choices[0].message.content}
+        
+        gpt_end = time.time()
+        print(f"GPT 執行時間: {gpt_end - gpt_start:.2f} 秒")
     
-    gpt_end = time.time()
-    print(f"GPT 執行時間: {gpt_end - gpt_start:.2f} 秒")
-
-    seeking_post = {"seeking_post": response.output_text}
-    
-    return seeking_post
+        return seeking_post
 
 
 async def main():
