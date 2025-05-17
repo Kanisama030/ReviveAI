@@ -14,6 +14,7 @@ logger = logging.getLogger("reviveai_api")
 # 導入服務模組
 from image_service import analyze_image
 from content_service import generate_product_content
+from streaming_content_service import generate_streaming_product_content
 from calculate_carbon import calculate_carbon_footprint_async
 from selling_post_service import generate_selling_post
 from seeking_post_service import generate_seeking_post
@@ -86,6 +87,95 @@ async def combined_online_sale_endpoint(
         return ApiResponse(
             success=False,
             error=str(e)
+        )
+
+@router.post("/online_sale_stream")
+async def combined_online_sale_stream_endpoint(
+    description: str = Form(None),
+    image: UploadFile = File(...),
+    style: str = Form("normal")  # 添加風格參數，默認為 normal
+):
+    """
+    拍賣網站文案服務（串流版）：分析圖片、優化內容並計算碳足跡，以串流方式回應
+
+    - **description**: 商品描述文字
+    - **image**: 商品圖片檔案
+    - **style**: 文案風格，可選值：normal(標準專業)、casual(輕鬆活潑)、formal(正式商務)、story(故事體驗)
+    """
+    desc_preview = description[:50] + "..." if description and len(description) > 50 else description
+    logger.info(f"接收拍賣網站文案串流服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}")
+
+    try:
+        # 保存上傳的圖片到臨時文件
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
+            temp_file.write(await image.read())
+            temp_path = temp_file.name
+
+        logger.info(f"開始分析圖片")
+        image_analysis = await analyze_image(temp_path)
+        image_analysis_text = image_analysis.output_text
+
+        # 刪除臨時文件
+        os.unlink(temp_path)
+
+        # 將圖片分析結果與原始描述結合
+        combined_description = description or ""
+        if image_analysis_text:
+            combined_description = f"商品資訊：\n{combined_description}\n\n圖片分析結果:\n{image_analysis_text}"
+        
+        # 啟動碳足跡計算任務（不等待完成）
+        logger.info(f"開始計算碳足跡")
+        carbon_task = asyncio.create_task(calculate_carbon_footprint_async(combined_description))
+        
+        # 獲取串流內容生成器
+        logger.info(f"開始生成串流式內容優化，使用風格: {style}")
+        streaming_result = await generate_streaming_product_content(combined_description, style=style)
+        search_results = streaming_result["search_results"]
+        content_generator = streaming_result["content_generator"]
+        
+        # 等待碳足跡計算完成
+        carbon_results = await carbon_task
+        
+        # 創建一個生成器函數，首先發送初始數據，然後串流內容
+        async def response_generator():
+            # 首先發送初始數據（圖片分析和碳足跡）
+            initial_data = {
+                "type": "metadata",
+                "image_analysis": image_analysis_text,
+                "search_results": search_results,
+                "carbon_footprint": carbon_results
+            }
+            yield json.dumps(initial_data) + "\n"
+            
+            # 然後串流文案內容
+            async for content in content_generator:
+                chunk_data = {
+                    "type": "content",
+                    "chunk": content
+                }
+                yield json.dumps(chunk_data) + "\n"
+            
+            # 結束標記
+            yield json.dumps({"type": "end"}) + "\n"
+        
+        logger.info(f"返回串流回應")
+        return StreamingResponse(
+            response_generator(),
+            media_type="application/json"
+        )
+    
+    except Exception as e:
+        logger.error(f"拍賣網站文案串流服務處理失敗: {str(e)}", exc_info=True)
+        # 對於串流請求的錯誤，我們也需要返回一個有效的串流響應
+        async def error_response():
+            yield json.dumps({
+                "type": "error",
+                "error": str(e)
+            }) + "\n"
+        
+        return StreamingResponse(
+            error_response(),
+            media_type="application/json"
         )
 
 @router.post("/selling_post")
