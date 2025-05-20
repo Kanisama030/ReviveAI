@@ -23,6 +23,11 @@ css = """
 .tabs > .tab-nav > button.selected {
     border-color: var(--primary-color) !important;
     color: var(--primary-color) !important;
+    background-color: rgba(109, 226, 156, 0.1) !important;
+}
+
+.tab-nav button.selected {
+    color: var(--primary-color) !important; /* 被選中 Tab 的文字顏色 */
 }
 
 .tabs > .tab-nav > button:hover {
@@ -37,9 +42,15 @@ css = """
     background-color: #c62828 !important;
     color: white !important;
     border: none !important;
-    padding: 5px 10px !important;
+    padding: 8px 15px !important;  /* 增加上下內邊距 */
     font-size: 0.9em !important;
     margin-left: auto !important;
+    float: right !important;
+    width: 120px !important;  /* 固定寬度 */
+    position: fixed !important;  /* 固定位置 */
+    top: 15px !important;  /* 距離頂部距離 */
+    right: 15px !important;  /* 距離右側距離 */
+    z-index: 1000 !important;  /* 確保按鈕在其他元素之上 */
 }
 
 .submit-btn {
@@ -71,11 +82,20 @@ button:hover {
 def process_online_sale(description, image, style, progress=gr.Progress()):
     """
     處理拍賣網站文案功能，調用 API 並處理串流回應
+    
+    返回組件:
+    1. online_result_json: 完整結果的 JSON
+    2. online_image_analysis: 圖片分析結果
+    3. online_title: 優化的商品標題
+    4. online_basic_info: 即時更新的商品詳細文案
+    5. online_carbon: 碳足跡分析
+    6. online_search: 網路搜尋結果
     """
     progress(0, desc="準備請求...")
     
     if image is None:
-        return {"error": "請上傳商品圖片"}, None, None, None, None, None
+        yield {"error": "請上傳商品圖片"}, None, None, None, None, None
+        return
     
     try:
         # 準備檔案和表單資料
@@ -101,8 +121,10 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
         content_chunks = ""
         is_first_chunk = True
         progress_value = 0.2
+        current_title = ""
         
         progress(progress_value, desc="正在處理回應...")
+        metadata_received = False
         
         # 處理串流回應
         for line in response.iter_lines():
@@ -115,8 +137,17 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
                     image_analysis = chunk_data.get("image_analysis", "")
                     search_results = chunk_data.get("search_results", "")
                     carbon_footprint = chunk_data.get("carbon_footprint", {})
+                    carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
+                    
                     progress_value = 0.4
                     progress(progress_value, desc="接收圖片分析和碳足跡資料...")
+                    metadata_received = True
+                    
+                    # 傳遞初始元數據，不包含文案內容
+                    yield {
+                        "success": True,
+                        "full_content": ""
+                    }, image_analysis, "", "", carbon_text, search_results
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":
@@ -124,31 +155,45 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
                     content_chunks += content
                     progress_value = min(progress_value + 0.02, 0.9)
                     progress(progress_value, desc="接收文案內容...")
+                    
+                    # 處理目前已有的內容
+                    current_sections = split_content_sections(content_chunks)
+                    current_title = current_sections["title"]
+                    current_content = current_sections["basic_info"]
+                    
+                    # 即時返回更新的內容
+                    yield {
+                        "success": True,
+                        "full_content": content_chunks
+                    }, image_analysis, current_title, current_content, carbon_text, search_results
                 
                 # 處理結束標記
                 elif chunk_data.get("type") == "end":
                     progress(1.0, desc="完成！")
+                    
+                    # 處理碳足跡文本表示
+                    carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
+                    
+                    # 將文案內容分拆為不同部分
+                    content_sections = split_content_sections(content_chunks)
+                    
+                    # 最終更新
+                    yield {
+                        "success": True,
+                        "full_content": content_chunks
+                    }, image_analysis, content_sections["title"], content_sections["basic_info"], carbon_text, search_results
                     break
                 
                 # 處理錯誤
                 elif chunk_data.get("type") == "error":
                     error_msg = chunk_data.get("error", "未知錯誤")
-                    return {"error": error_msg}, None, None, None, None, None
-        
-        # 處理碳足跡文本表示
-        carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
-        
-        # 將文案內容分拆為不同部分
-        content_sections = split_content_sections(content_chunks)
-        
+                    yield {"error": error_msg}, None, None, None, None, None
+                    return
+                    
         progress(1.0, desc="處理完成！")
-        return {
-            "success": True,
-            "full_content": content_chunks  # 完整文案，用於複製
-        }, image_analysis, content_sections["title"], content_sections["basic_info"], carbon_text, search_results
     
     except Exception as e:
-        return {"error": f"發生錯誤: {str(e)}"}, None, None, None, None, None
+        yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None, None
 
 # ================================= 社群賣文功能 =================================
 def process_selling_post(description, image, price, contact_info, trade_method, style, progress=gr.Progress()):
@@ -317,42 +362,36 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
 # ================================= 輔助函數 =================================
 def split_content_sections(content):
     """
-    將文案內容分拆為不同部分
+    將文案內容分拆為不同部分，去掉basic_info中重複的標題部分
     """
     sections = {
         "title": "",
-        "basic_info": "",
-        "features": "",
-        "status": "",
-        "sustainable": "",
-        "call_to_action": ""
+        "basic_info": ""
     }
     
+    # 找出標題部分（第一個#後面的內容）
     lines = content.split('\n')
-    current_section = None
+    title_section_end = 0
     
-    for line in lines:
+    for i, line in enumerate(lines):
         if line.startswith("# 優化商品標題"):
-            current_section = "title"
-            continue
-        elif line.startswith("# 商品基本資訊"):
-            current_section = "basic_info"
-            continue
-        elif line.startswith("# 商品特色與賣點"):
-            current_section = "features"
-            continue
-        elif line.startswith("# 商品現況詳細說明"):
-            current_section = "status"
-            continue
-        elif line.startswith("# 永續價值"):
-            current_section = "sustainable"
-            continue
-        elif line.startswith("# 呼籲行動"):
-            current_section = "call_to_action"
-            continue
-        
-        if current_section and not line.startswith("#"):
-            sections[current_section] += line + "\n"
+            # 尋找標題內容
+            for j in range(i+1, len(lines)):
+                if not lines[j].strip():
+                    continue
+                if lines[j].startswith("#"):
+                    title_section_end = j
+                    break
+                sections["title"] = lines[j].strip()
+                title_section_end = j + 1
+                break
+            break
+    
+    # 組合排除了標題部分的商品詳細內容
+    if title_section_end > 0:
+        sections["basic_info"] = '\n'.join(lines[title_section_end:])
+    else:
+        sections["basic_info"] = content
     
     return sections
 
@@ -428,18 +467,17 @@ def create_app():
                         with gr.Tabs() as online_output_tabs:
                             with gr.Tab("文案輸出"):
                                 online_result_json = gr.JSON(visible=False)  # 儲存完整結果
-                                online_title = gr.Textbox(label="優化商品標題", lines=2, interactive=False)
-                                online_basic_info = gr.Markdown(label="商品詳細內容")
-                                online_copy_btn = gr.Button("複製完整文案", variant="secondary", elem_classes=["copy-btn"])
+                                online_title = gr.Textbox(label="優化商品標題", lines=2, interactive=False, show_copy_button=True)
+                                online_basic_info = gr.Textbox(label="商品詳細內容", lines=15, interactive=False, show_copy_button=True)
                                 
                             with gr.Tab("碳足跡"):
                                 online_carbon = gr.Markdown()
                                 
                             with gr.Tab("圖片分析"):
-                                online_image_analysis = gr.Textbox(label="圖片分析結果", lines=8, interactive=False)
+                                online_image_analysis = gr.Markdown(label="圖片分析結果")
                                 
                             with gr.Tab("網路搜尋結果"):
-                                online_search = gr.Textbox(label="網路搜尋結果", lines=10, interactive=False)
+                                online_search = gr.Markdown(label="網路搜尋結果")
                 
                 # 連接按鈕事件
                 online_submit.click(
@@ -449,24 +487,6 @@ def create_app():
                 )
                 
                 # 複製按鈕事件
-                online_copy_btn.click(
-                    lambda x: x["full_content"] if x and "full_content" in x else "無內容可複製", 
-                    inputs=[online_result_json], 
-                    outputs=[]
-                ).then(
-                    None,  # 使用JS直接複製
-                    None,
-                    None,
-                    js="""
-                    () => {
-                        const text = document.querySelector('div[id^="component-"][id$="-online_result_json"]').textContent;
-                        const json = JSON.parse(text);
-                        const content = json.full_content || "無內容可複製";
-                        navigator.clipboard.writeText(content);
-                        return [];
-                    }
-                    """
-                )
                 
             # =============== 社群賣文 TAB ===============
             with gr.Tab("社群賣文"):
@@ -491,14 +511,14 @@ def create_app():
                         with gr.Tabs() as selling_output_tabs:
                             with gr.Tab("文案輸出"):
                                 selling_result_json = gr.JSON(visible=False)  # 儲存完整結果
-                                selling_content = gr.Textbox(label="社群銷售文案", lines=10, interactive=False)
+                                selling_content = gr.Textbox(label="社群銷售文案", lines=15, interactive=False, show_copy_button=True)
                                 selling_copy_btn = gr.Button("複製文案", variant="secondary", elem_classes=["copy-btn"])
                                 
                             with gr.Tab("碳足跡"):
                                 selling_carbon = gr.Markdown()
                                 
                             with gr.Tab("圖片分析"):
-                                selling_image_analysis = gr.Textbox(label="圖片分析結果", lines=8, interactive=False)
+                                selling_image_analysis = gr.Markdown(label="圖片分析結果")
                 
                 # 連接按鈕事件
                 selling_submit.click(
@@ -559,11 +579,11 @@ def create_app():
                         with gr.Tabs() as seeking_output_tabs:
                             with gr.Tab("文案輸出"):
                                 seeking_result_json = gr.JSON(visible=False)  # 儲存完整結果
-                                seeking_content = gr.Textbox(label="社群徵求文案", lines=10, interactive=False)
+                                seeking_content = gr.Textbox(label="社群徵求文案", lines=15, interactive=False, show_copy_button=True)
                                 seeking_copy_btn = gr.Button("複製文案", variant="secondary", elem_classes=["copy-btn"])
                                 
                             with gr.Tab("圖片分析"):
-                                seeking_image_analysis = gr.Textbox(label="參考圖片分析結果", lines=8, interactive=False)
+                                seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")
                 
                 # 連接按鈕事件
                 seeking_submit.click(
