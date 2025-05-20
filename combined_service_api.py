@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, Form
+from fastapi import APIRouter, File, UploadFile, Form, HTTPException
 from pydantic import BaseModel
 import tempfile
 import os
@@ -7,12 +7,14 @@ from typing import Optional, Dict, Any
 import asyncio
 import json
 from fastapi.responses import StreamingResponse
+from pathlib import Path
+import filetype  # 使用 filetype 代替 imghdr
 
 # 獲取日誌記錄器
 logger = logging.getLogger("reviveai_api")
 
 # 導入服務模組
-from image_service import analyze_image
+from image_service import analyze_image, validate_image
 from content_service import generate_product_content
 from streaming_content_service import generate_streaming_product_content
 from calculate_carbon import calculate_carbon_footprint_async
@@ -31,6 +33,34 @@ class ApiResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
+# 驗證並保存上傳的圖片到臨時文件
+async def save_and_validate_image(image: UploadFile):
+    if not image:
+        raise HTTPException(status_code=400, detail="未提供圖片文件")
+    
+    # 檢查檔案是否為空
+    file_content = await image.read()
+    if not file_content:
+        raise HTTPException(status_code=400, detail="圖片文件為空")
+    
+    # 根據常見的圖片擴展名確定臨時文件的副檔名
+    # 注意：這裡我們只使用副檔名來幫助建立臨時文件，實際的格式驗證在後續進行
+    file_extension = Path(image.filename).suffix.lower() if image.filename else ".tmp"
+    
+    # 保存上傳的圖片到臨時文件
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as temp_file:
+        temp_file.write(file_content)
+        temp_path = temp_file.name
+    
+    try:
+        # 驗證圖片格式和大小
+        validate_image(temp_path)
+        return temp_path
+    except Exception as e:
+        # 如果驗證失敗，刪除臨時文件並拋出錯誤
+        os.unlink(temp_path)
+        raise HTTPException(status_code=400, detail=str(e))
+
 # API 端點
 @router.post("/online_sale", response_model=ApiResponse)
 async def combined_online_sale_endpoint(
@@ -42,17 +72,15 @@ async def combined_online_sale_endpoint(
     拍賣網站文案服務：分析圖片、優化內容並計算碳足跡
 
     - **description**: 商品描述文字
-    - **image**: 商品圖片檔案
+    - **image**: 商品圖片檔案 (支持 PNG, JPEG, WEBP，最大 20MB)
     - **style**: 文案風格，可選值：normal(標準專業)、casual(輕鬆活潑)、formal(正式商務)、story(故事體驗)
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
     logger.info(f"接收拍賣網站文案服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}")
 
     try:
-        # 保存上傳的圖片到臨時文件
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
-            temp_file.write(await image.read())
-            temp_path = temp_file.name
+        # 保存和驗證上傳的圖片
+        temp_path = await save_and_validate_image(image)
 
         logger.info(f"開始分析圖片")
         image_analysis = await analyze_image(temp_path)
@@ -82,6 +110,12 @@ async def combined_online_sale_endpoint(
                 "carbon_footprint": carbon_results
             }
         )
+    except HTTPException as he:
+        logger.error(f"拍賣網站文案服務處理失敗: {str(he)}")
+        return ApiResponse(
+            success=False,
+            error=str(he.detail)
+        )
     except Exception as e:
         logger.error(f"拍賣網站文案服務處理失敗: {str(e)}", exc_info=True)
         return ApiResponse(
@@ -99,17 +133,15 @@ async def combined_online_sale_stream_endpoint(
     拍賣網站文案服務（串流版）：分析圖片、優化內容並計算碳足跡，以串流方式回應
 
     - **description**: 商品描述文字
-    - **image**: 商品圖片檔案
+    - **image**: 商品圖片檔案 (支持 PNG, JPEG, WEBP，最大 20MB)
     - **style**: 文案風格，可選值：normal(標準專業)、casual(輕鬆活潑)、formal(正式商務)、story(故事體驗)
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
     logger.info(f"接收拍賣網站文案串流服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}")
 
     try:
-        # 保存上傳的圖片到臨時文件
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
-            temp_file.write(await image.read())
-            temp_path = temp_file.name
+        # 保存和驗證上傳的圖片
+        temp_path = await save_and_validate_image(image)
 
         logger.info(f"開始分析圖片")
         image_analysis = await analyze_image(temp_path)
@@ -164,6 +196,20 @@ async def combined_online_sale_stream_endpoint(
             media_type="application/json"
         )
     
+    except HTTPException as he:
+        logger.error(f"拍賣網站文案串流服務處理失敗: {str(he)}")
+        # 對於串流請求的錯誤，我們也需要返回一個有效的串流響應
+        async def error_response():
+            yield json.dumps({
+                "type": "error",
+                "error": str(he.detail)
+            }) + "\n"
+        
+        return StreamingResponse(
+            error_response(),
+            media_type="application/json"
+        )
+    
     except Exception as e:
         logger.error(f"拍賣網站文案串流服務處理失敗: {str(e)}", exc_info=True)
         # 對於串流請求的錯誤，我們也需要返回一個有效的串流響應
@@ -192,7 +238,7 @@ async def combined_selling_post_endpoint(
     社群銷售貼文服務：分析圖片、計算碳足跡並生成社群平台銷售文案
 
     - **description**: 商品描述文字
-    - **image**: 商品圖片檔案
+    - **image**: 商品圖片檔案 (支持 PNG, JPEG, WEBP，最大 20MB)
     - **price**: 商品售價
     - **contact_info**: 聯絡方式
     - **trade_method**: 交易方式
@@ -203,10 +249,8 @@ async def combined_selling_post_endpoint(
     logger.info(f"接收社群銷售貼文服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 價格={price}, 串流={stream}")
 
     try:
-        # 保存上傳的圖片到臨時文件
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
-            temp_file.write(await image.read())
-            temp_path = temp_file.name
+        # 保存和驗證上傳的圖片
+        temp_path = await save_and_validate_image(image)
 
         logger.info(f"開始分析圖片")
         image_analysis = await analyze_image(temp_path)
@@ -295,6 +339,12 @@ async def combined_selling_post_endpoint(
                     }
                 )
         
+    except HTTPException as he:
+        logger.error(f"社群銷售貼文服務處理失敗: {str(he)}")
+        return ApiResponse(
+            success=False,
+            error=str(he.detail)
+        )
     except Exception as e:
         logger.error(f"社群銷售貼文服務處理失敗: {str(e)}", exc_info=True)
         return ApiResponse(
@@ -325,7 +375,7 @@ async def combined_seeking_post_endpoint(
     - **trade_method**: 交易方式
     - **seeking_type**: 徵求類型，購買(buy)或租借(rent)
     - **deadline**: 徵求時效
-    - **image**: 參考圖片檔案 (可選)
+    - **image**: 參考圖片檔案 (可選，支持 PNG, JPEG, WEBP，最大 20MB)
     - **style**: 文案風格，可選值:normal (標準親切)、urgent (急需緊急)、 budget (預算有限)、collector (收藏愛好)
     - **stream**: 是否使用串流回應（預設為 false）
     """
@@ -337,9 +387,8 @@ async def combined_seeking_post_endpoint(
 
         # 如果有上傳圖片，則進行分析
         if image and image.filename:  # 確保 image 存在且有檔案名稱
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
-                temp_file.write(await image.read())
-                temp_path = temp_file.name
+            # 保存和驗證上傳的圖片
+            temp_path = await save_and_validate_image(image)
 
             logger.info(f"開始分析參考圖片")
             image_analysis = await analyze_image(temp_path)
@@ -420,6 +469,12 @@ async def combined_seeking_post_endpoint(
                     }
                 )
         
+    except HTTPException as he:
+        logger.error(f"社群徵品貼文服務處理失敗: {str(he)}")
+        return ApiResponse(
+            success=False,
+            error=str(he.detail)
+        )
     except Exception as e:
         logger.error(f"社群徵品貼文服務處理失敗: {str(e)}", exc_info=True)
         return ApiResponse(
