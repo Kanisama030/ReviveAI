@@ -6,7 +6,7 @@ from query_chroma import ai_search_products
 load_dotenv()
 
 # 常數定義
-DEFAULT_SAVING_RATIO = 0.50
+DEFAULT_SAVING_RATIO = 0.54  # 假設平均節省的碳排放比例：二手產品的平均替代率（Replacement Rate）
 
 def calculate_environmental_benefits(saved_carbon: float) -> dict:
     """計算環境效益等值"""
