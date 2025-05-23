@@ -7,6 +7,8 @@ import gradio as gr
 import requests
 import json
 import os
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # 設定 API 基礎 URL
 API_BASE_URL = "http://localhost:8000"  # 請根據您的實際設置修改
@@ -23,9 +25,10 @@ def process_online_sale(description, image, style):
     4. online_basic_info: 即時更新的商品詳細文案
     5. online_carbon: 碳足跡分析
     6. online_search: 網路搜尋結果
+    7. online_carbon_chart: 碳足跡圖表
     """
     if image is None:
-        yield {"error": "請上傳商品圖片"}, None, None, None, None, None
+        yield {"error": "請上傳商品圖片"}, None, None, None, None, None, None
         return
     
     try:
@@ -65,6 +68,7 @@ def process_online_sale(description, image, style):
                     search_results = chunk_data.get("search_results", "")
                     carbon_footprint = chunk_data.get("carbon_footprint", {})
                     carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
+                    carbon_chart = create_carbon_chart(carbon_footprint) if carbon_footprint else None
                     metadata_received = True
                     
                     # 傳遞初始元數據，不包含文案內容
@@ -72,7 +76,7 @@ def process_online_sale(description, image, style):
                         "success": True,
                         "full_content": "",
                         "streaming_started": False
-                    }, image_analysis, "", "", carbon_text, search_results
+                    }, image_analysis, "", "", carbon_text, search_results, carbon_chart
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":
@@ -93,12 +97,13 @@ def process_online_sale(description, image, style):
                         "success": True,
                         "full_content": content_chunks,
                         "streaming_started": streaming_started
-                    }, image_analysis, current_title, current_content, carbon_text, search_results
+                    }, image_analysis, current_title, current_content, carbon_text, search_results, carbon_chart
                 
                 # 處理結束標記
                 elif chunk_data.get("type") == "end":
-                    # 處理碳足跡文本表示
+                    # 處理碳足跡文本表示和圖表
                     carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
+                    carbon_chart = create_carbon_chart(carbon_footprint) if carbon_footprint else None
                     
                     # 將文案內容分拆為不同部分
                     content_sections = split_content_sections(content_chunks)
@@ -109,17 +114,17 @@ def process_online_sale(description, image, style):
                         "full_content": content_chunks,
                         "streaming_started": True,
                         "completed": True
-                    }, image_analysis, content_sections["title"], content_sections["basic_info"], carbon_text, search_results
+                    }, image_analysis, content_sections["title"], content_sections["basic_info"], carbon_text, search_results, carbon_chart
                     break
                 
                 # 處理錯誤
                 elif chunk_data.get("type") == "error":
                     error_msg = chunk_data.get("error", "未知錯誤")
-                    yield {"error": error_msg}, None, None, None, None, None
+                    yield {"error": error_msg}, None, None, None, None, None, None
                     return
     
     except Exception as e:
-        yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None, None
+        yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None, None, None
 
 # ================================= 社群賣文功能 =================================
 def process_selling_post(description, image, price, contact_info, trade_method, style, progress=gr.Progress()):
@@ -129,7 +134,7 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
     progress(0, desc="準備請求...")
     
     if image is None:
-        return {"error": "請上傳商品圖片"}, None, None
+        return {"error": "請上傳商品圖片"}, None, None, None, None
     
     try:
         # 準備檔案和表單資料
@@ -155,6 +160,7 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
         # 初始化結果變數
         image_analysis = ""
         carbon_footprint = None
+        search_results = ""
         content_chunks = ""
         is_first_chunk = True
         progress_value = 0.2
@@ -171,8 +177,9 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
                 if chunk_data.get("type") == "metadata":
                     image_analysis = chunk_data.get("image_analysis", "")
                     carbon_footprint = chunk_data.get("carbon_footprint", {})
+                    search_results = chunk_data.get("search_results", "")
                     progress_value = 0.4
-                    progress(progress_value, desc="接收圖片分析和碳足跡資料...")
+                    progress(progress_value, desc="接收圖片分析、碳足跡和搜尋資料...")
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":
@@ -189,19 +196,20 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
                 # 處理錯誤
                 elif chunk_data.get("type") == "error":
                     error_msg = chunk_data.get("error", "未知錯誤")
-                    return {"error": error_msg}, None, None
+                    return {"error": error_msg}, None, None, None, None
         
-        # 處理碳足跡文本表示
+        # 處理碳足跡文本表示和圖表
         carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
+        carbon_chart = create_carbon_chart(carbon_footprint) if carbon_footprint else None
         
         progress(1.0, desc="處理完成！")
         return {
             "success": True,
             "full_content": content_chunks  # 完整文案，用於複製
-        }, image_analysis, carbon_text
+        }, image_analysis, carbon_text, carbon_chart, search_results
     
     except Exception as e:
-        return {"error": f"發生錯誤: {str(e)}"}, None, None
+        return {"error": f"發生錯誤: {str(e)}"}, None, None, None, None
 
 # ================================= 社群徵文功能 =================================
 def process_seeking_post(product_description, purpose, expected_price, contact_info, trade_method, 
@@ -321,6 +329,155 @@ def split_content_sections(content):
     
     return sections
 
+def create_environmental_gauges(saved_carbon, tree_equivalent, car_km_equivalent):
+    """創建環保效益儀表板"""
+    def parse_value(value):
+        if isinstance(value, str):
+            try:
+                if value.startswith("少於"):
+                    return float(value.split("少於")[1].strip())
+                return float(''.join(filter(lambda x: x.isdigit() or x == '.', value)))
+            except (ValueError, AttributeError):
+                return 0.0
+        return float(value)
+
+    # 解析值
+    saved_carbon = parse_value(saved_carbon)
+    tree_equivalent = parse_value(tree_equivalent)
+    car_km_equivalent = parse_value(car_km_equivalent)
+
+    # 計算每個儀表的最大範圍（統一使用 1.5 倍）
+    carbon_max = saved_carbon * 1.4
+    tree_max = tree_equivalent * 1.5
+    car_max = car_km_equivalent * 1.45
+
+    # 創建三個子圖
+    fig = make_subplots(
+        rows=1, cols=3,
+        specs=[[{'type': 'indicator'}, {'type': 'indicator'}, {'type': 'indicator'}]],
+        horizontal_spacing=0.1  # 增加水平间距
+    )
+
+    # 定義共用的字體樣式
+    title_font = {'family': 'Arial', 'size': 18, 'color': '#2E4053'}
+    number_font = {'family': 'Arial', 'size': 22, 'color': '#2E4053'}
+
+    # 定義共用的儀表設計
+    gauge_config = {
+        'bgcolor': 'white',
+        'borderwidth': 2,
+        'bordercolor': '#34495E',
+        'steps': [],
+        'threshold': {
+            'line': {'color': '#E74C3C', 'width': 4},
+            'thickness': 0.8,
+        }
+    }
+
+    # 通用的轴配置
+    axis_config = {
+        'tickfont': {'size': 12},  # 刻度字體
+        'nticks': 6  # 刻度数量
+    }
+
+    # 減碳量儀表
+    fig.add_trace(
+        go.Indicator(
+            mode="gauge+number",  # 顯示儀表盤和數字
+            value=saved_carbon,
+            number={'font': number_font, 'suffix': ' kg', 'valueformat': '.2f'},  # 中間數字
+            title={'text': '🌏減碳量', 'font': title_font},  # 上方標題
+            gauge={
+                **gauge_config,
+                'axis': {**axis_config, 'range': [0, carbon_max]},  # 刻度軸設置
+                'bar': {'color': '#27AE60'},  # 指針/弧形
+                'steps': [{'range': [0, saved_carbon], 'color': '#A9DFBF'}],  # 填充顏色區域
+                'threshold': {**gauge_config['threshold'], 'value': saved_carbon}  # 當前值的標記線
+            }
+        ),
+        row=1, col=1
+    )
+
+    # 樹木數量儀表
+    fig.add_trace(
+        go.Indicator(
+            mode="gauge+number",
+            value=tree_equivalent,
+            number={'font': number_font, 'suffix': ' 棵', 'valueformat': '.1f'},
+            title={'text': '🌳等於幾顆樹一年吸碳量', 'font': title_font},
+            gauge={
+                **gauge_config,
+                'axis': {**axis_config, 'range': [0, tree_max]},
+                'bar': {'color': '#218F76'},
+                'steps': [{'range': [0, tree_equivalent], 'color': '#A3E4D7'}],
+                'threshold': {**gauge_config['threshold'], 'value': tree_equivalent}
+            }
+        ),
+        row=1, col=2
+    )
+
+    # 車程儀表
+    fig.add_trace(
+        go.Indicator(
+            mode="gauge+number",
+            value=car_km_equivalent,
+            number={'font': number_font, 'suffix': ' km', 'valueformat': '.1f'},
+            title={'text': '🚗減少開車幾公里的碳排', 'font': title_font},
+            gauge={
+                **gauge_config,
+                'axis': {**axis_config, 'range': [0, car_max]},
+                'bar': {'color': '#2874A6'},
+                'steps': [{'range': [0, car_km_equivalent], 'color': '#AED6F1'}],
+                'threshold': {**gauge_config['threshold'], 'value': car_km_equivalent}
+            }
+        ),
+        row=1, col=3
+    )
+
+    # 更新布局
+    fig.update_layout(
+        height=250,
+        width=750,  # 設定固定寬度
+        showlegend=False,
+        title={
+            'text': "<b>環保效益視覺化</b>",
+            'y': 0.95,
+            'x': 0.5,
+            'xanchor': 'center',
+            'yanchor': 'top',
+            'font': {'family': 'Arial', 'size': 28, 'color': '#2E4053'}
+        },
+        margin=dict(l=40, r=40, t=70, b=70),  # 左右邊距
+        paper_bgcolor='rgba(255,255,255,0.8)',
+        plot_bgcolor='rgba(255,255,255,0.8)',
+        font={'family': 'Arial', 'size': 14, 'color': '#2E4053'}
+    )
+
+    return fig
+
+def create_carbon_chart(carbon_data):
+    """
+    根據碳足跡數據創建 plotly 圖表
+    """
+    if not carbon_data:
+        return None
+    
+    try:
+        # 從碳足跡數據中提取環境效益
+        benefits = carbon_data.get("environmental_benefits", {})
+        saved_carbon = carbon_data.get("saved_carbon", 0)
+        
+        # 提取各項效益值
+        trees = benefits.get('trees', '0')
+        car_km = benefits.get('car_km', '0')
+        
+        # 創建環保效益儀表板
+        return create_environmental_gauges(saved_carbon, trees, car_km)
+    
+    except Exception as e:
+        print(f"創建碳足跡圖表時發生錯誤: {e}")
+        return None
+
 def format_carbon_footprint(carbon_data):
     """
     格式化碳足跡數據為易讀文本
@@ -354,15 +511,15 @@ def reset_all():
     return [
         # online_image, online_desc, online_style, online_result_json, online_image_analysis, 
         # online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
-        # online_condition, online_brand, online_original_price,
+        # online_condition, online_brand, online_original_price, online_carbon_chart,
         None, "", "normal", None, None,  # online 前5個
         None, None, None, None, 2,  # online 後5個 (usage_time 預設為 2)
-        "八成新", "", "",  # online 表單元件 (condition, brand, original_price)
+        "八成新", "", "", None,  # online 表單元件 (condition, brand, original_price, carbon_chart)
         
         # selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
-        # selling_style, selling_result_json, selling_image_analysis, selling_carbon,
+        # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search,
         None, "", "", "請私訊詳詢", "面交/郵寄皆可",  # selling 前5個
-        "normal", None, None, None,  # selling 後4個
+        "normal", None, None, None, None, None,  # selling 後6個 (包含 carbon_chart 和 selling_search)
         
         # seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
         # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,

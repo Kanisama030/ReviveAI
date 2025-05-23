@@ -86,7 +86,10 @@ def create_app():
                                 online_title = gr.Textbox(label="優化商品標題", lines=2, interactive=False, show_copy_button=True)
                                 online_basic_info = gr.Textbox(label="商品詳細內容", lines=45, interactive=False, show_copy_button=True)
                                 
-                            with gr.Tab("碳足跡"):
+                            with gr.Tab("碳足跡圖表"):
+                                online_carbon_chart = gr.Plot(label="環保效益視覺化")
+                                
+                            with gr.Tab("碳足跡數值"):
                                 online_carbon = gr.Markdown()
                                 
                             with gr.Tab("圖片分析"):
@@ -145,7 +148,7 @@ def create_app():
                 ).then(
                     process_online_sale_with_form, 
                     inputs=[online_desc, online_image, online_style, online_usage_time, online_condition, online_brand, online_original_price],
-                    outputs=[online_result_json, online_image_analysis, online_title, online_basic_info, online_carbon, online_search]
+                    outputs=[online_result_json, online_image_analysis, online_title, online_basic_info, online_carbon, online_search, online_carbon_chart]
                 ).then(
                     finish_online_processing,
                     inputs=[online_result_json],
@@ -178,11 +181,17 @@ def create_app():
                                 selling_content = gr.Textbox(label="社群銷售文案", lines=45, interactive=False, show_copy_button=True)
                                 selling_copy_btn = gr.Button("複製文案", variant="secondary", elem_classes=["copy-btn"])
                                 
-                            with gr.Tab("碳足跡"):
+                            with gr.Tab("碳足跡圖表"):
+                                selling_carbon_chart = gr.Plot(label="環保效益視覺化")
+                                
+                            with gr.Tab("碳足跡數值"):
                                 selling_carbon = gr.Markdown()
                                 
                             with gr.Tab("圖片分析"):
                                 selling_image_analysis = gr.Markdown(label="圖片分析結果")
+                                
+                            with gr.Tab("網路搜尋結果"):
+                                selling_search = gr.Markdown(label="網路搜尋結果")
                 
                 # 連接按鈕事件
                 def start_selling_processing():
@@ -206,7 +215,7 @@ def create_app():
                 ).then(
                     process_selling_post, 
                     inputs=[selling_desc, selling_image, selling_price, selling_contact, selling_trade, selling_style],
-                    outputs=[selling_result_json, selling_image_analysis, selling_carbon]
+                    outputs=[selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search]
                 ).then(
                     finish_selling_processing,
                     inputs=[selling_result_json],
@@ -215,17 +224,15 @@ def create_app():
                 
                 # 複製按鈕事件
                 selling_copy_btn.click(
-                    lambda x: x, 
-                    inputs=[selling_content], 
-                    outputs=[]
-                ).then(
-                    None,
-                    None,
-                    None,
+                    lambda: None,  # 不接收輸入也不返回輸出
+                    inputs=[], 
+                    outputs=[],
                     js="""
-                    (content) => {
-                        navigator.clipboard.writeText(content);
-                        return [];
+                    () => {
+                        const contentElement = document.querySelector('textarea[data-testid*="selling_content"]');
+                        if (contentElement) {
+                            navigator.clipboard.writeText(contentElement.value);
+                        }
                     }
                     """
                 )
@@ -301,17 +308,15 @@ def create_app():
                 
                 # 複製按鈕事件
                 seeking_copy_btn.click(
-                    lambda x: x, 
-                    inputs=[seeking_content], 
-                    outputs=[]
-                ).then(
-                    None,
-                    None,
-                    None,
+                    lambda: None,  # 不接收輸入也不返回輸出
+                    inputs=[], 
+                    outputs=[],
                     js="""
-                    (content) => {
-                        navigator.clipboard.writeText(content);
-                        return [];
+                    () => {
+                        const contentElement = document.querySelector('textarea[data-testid*="seeking_content"]');
+                        if (contentElement) {
+                            navigator.clipboard.writeText(contentElement.value);
+                        }
                     }
                     """
                 )
@@ -327,9 +332,9 @@ def create_app():
             outputs=[
                 online_image, online_desc, online_style, online_result_json, online_image_analysis, 
                 online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
-                online_condition, online_brand, online_original_price,
+                online_condition, online_brand, online_original_price, online_carbon_chart,
                 selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
-                selling_style, selling_result_json, selling_image_analysis, selling_carbon,
+                selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search,
                 seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
                 seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
                 seeking_image_analysis
@@ -350,6 +355,8 @@ def create_app():
         4. 選擇適合的文案風格
         5. 點擊「生成文案」按鈕
         6. 在右側查看生成的文案內容，並可使用複製按鈕複製文案
+        7. 查看「碳足跡數值」tab 了解環保效益的詳細數據
+        8. 查看「碳足跡圖表」tab 觀看互動式環保效益視覺化圖表
         
         ### 系統特色：
         
@@ -357,12 +364,14 @@ def create_app():
         - **二手商品表單**：專為二手商品設計的詳細資訊表單，包含使用時間、狀態、品牌等
         - **優化內容生成**：根據不同平台特性生成最適合的文案
         - **碳足跡計算**：計算選購二手商品的環境效益，幫助您了解對環境的貢獻
+        - **視覺化圖表**：使用互動式儀表板圖表展示環保效益，讓數據更直觀易懂
         - **串流生成**：實時生成和顯示文案內容，讓您能夠即時看到結果
         
         ### 永續價值
         
         使用 ReviveAI 系統不只是為了創建更好的二手商品描述，也是在為環境永續發展盡一份心力。
         每次選擇購買或銷售二手商品，都能減少新商品生產所帶來的碳排放和資源消耗。
+        透過視覺化圖表，您可以更清楚地看到每次選擇二手商品對環境帶來的正面影響。
         
         感謝您選擇 ReviveAI，讓我們一起為永續未來努力！
         """, elem_classes=["footer-info"])

@@ -272,6 +272,11 @@ async def combined_selling_post_endpoint(
             # 串流模式處理
             logger.info(f"開始生成串流式銷售文案，使用風格: {style}")
             
+            # 獲取搜尋結果（與拍賣網站功能相同）
+            logger.info(f"開始生成串流式內容優化以獲取搜尋結果")
+            streaming_result = await generate_streaming_product_content(combined_description, style=style)
+            search_results = streaming_result["search_results"]
+            
             # 獲取生成器函數
             stream_generator = await generate_selling_post(
                 product_description=combined_description,
@@ -287,11 +292,12 @@ async def combined_selling_post_endpoint(
 
             # 創建一個生成器函數，首先發送其他數據，然後串流文案內容
             async def response_generator():
-                # 首先發送初始數據（圖片分析和碳足跡）
+                # 首先發送初始數據（圖片分析、碳足跡和搜尋結果）
                 initial_data = {
                     "type": "metadata",
                     "image_analysis": image_analysis_text,
-                    "carbon_footprint": carbon_results
+                    "carbon_footprint": carbon_results,
+                    "search_results": search_results
                 }
                 yield json.dumps(initial_data) + "\n"
                 
