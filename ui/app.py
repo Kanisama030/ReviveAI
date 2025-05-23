@@ -178,7 +178,7 @@ def create_app():
                         with gr.Tabs() as selling_output_tabs:
                             with gr.Tab("文案輸出"):
                                 selling_result_json = gr.JSON(visible=False)  # 儲存完整結果
-                                selling_content = gr.Textbox(label="社群銷售文案", lines=45, interactive=False, show_copy_button=True)
+                                selling_content = gr.Textbox(label="社群銷售文案", lines=20, interactive=False, show_copy_button=True)
                                 
                             with gr.Tab("碳足跡圖表"):
                                 selling_carbon_chart = gr.Plot(label="環保效益視覺化")
@@ -192,33 +192,47 @@ def create_app():
                             with gr.Tab("網路搜尋結果"):
                                 selling_search = gr.Markdown(label="網路搜尋結果")
                 
-                # 連接按鈕事件
+                # 連接按鈕事件 - 使用串流模式，參考拍賣網站的實現
                 def start_selling_processing():
-                    gr.Info("開始生成社群賣文，正在分析圖片和處理內容...")
-                    return None
+                    gr.Info("開始處理社群賣文，請稍候...")
+                    return gr.update(interactive=False, value="生成中...")
                 
                 def finish_selling_processing(result):
                     if result and "success" in result and result["success"]:
                         gr.Info("社群賣文生成完成！")
-                        return result["full_content"]
                     elif result and "error" in result:
                         gr.Info(f"處理失敗：{result['error']}")
-                        return "處理失敗，請檢查輸入"
-                    else:
-                        return "處理失敗，請檢查輸入"
+                    return gr.update(interactive=True, value="生成社群賣文") if result and ("success" in result or "error" in result) else gr.update()
+                
+                def process_selling_post_with_streaming(desc, image, price, contact_info, trade_method, style):
+                    """處理社群賣文並直接串流輸出到各個組件"""
+                    for result in process_selling_post(desc, image, price, contact_info, trade_method, style):
+                        if len(result) == 5:  # 正常回應：(json, image_analysis, carbon, carbon_chart, search)
+                            result_json, image_analysis, carbon, carbon_chart, search = result
+                            
+                            # 從 result_json 中提取文案內容
+                            if result_json and "success" in result_json and result_json["success"]:
+                                content = result_json.get("full_content", "")
+                            else:
+                                content = ""
+                            
+                            yield result_json, image_analysis, carbon, carbon_chart, search, content
+                        else:
+                            # 錯誤情況
+                            yield result + (None,)  # 補齊長度
                 
                 selling_submit.click(
                     start_selling_processing,
                     inputs=[],
-                    outputs=[]
+                    outputs=[selling_submit]
                 ).then(
-                    process_selling_post, 
+                    process_selling_post_with_streaming, 
                     inputs=[selling_desc, selling_image, selling_price, selling_contact, selling_trade, selling_style],
-                    outputs=[selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search]
+                    outputs=[selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content]
                 ).then(
                     finish_selling_processing,
                     inputs=[selling_result_json],
-                    outputs=[selling_content]
+                    outputs=[selling_submit]
                 )
                 
             
@@ -253,7 +267,7 @@ def create_app():
                         with gr.Tabs() as seeking_output_tabs:
                             with gr.Tab("文案輸出"):
                                 seeking_result_json = gr.JSON(visible=False)  # 儲存完整結果
-                                seeking_content = gr.Textbox(label="社群徵求文案", lines=45, interactive=False, show_copy_button=True)
+                                seeking_content = gr.Textbox(label="社群徵求文案", lines=20, interactive=False, show_copy_button=True)
                                 
                             with gr.Tab("圖片分析"):
                                 seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")

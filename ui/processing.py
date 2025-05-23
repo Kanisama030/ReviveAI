@@ -127,14 +127,20 @@ def process_online_sale(description, image, style):
         yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None, None, None
 
 # ================================= 社群賣文功能 =================================
-def process_selling_post(description, image, price, contact_info, trade_method, style, progress=gr.Progress()):
+def process_selling_post(description, image, price, contact_info, trade_method, style):
     """
     處理社群賣文功能，調用 API 並處理串流回應
-    """
-    progress(0, desc="準備請求...")
     
+    返回組件:
+    1. selling_result_json: 完整結果的 JSON
+    2. selling_image_analysis: 圖片分析結果
+    3. selling_carbon: 碳足跡分析
+    4. selling_carbon_chart: 碳足跡圖表
+    5. selling_search: 網路搜尋結果
+    """
     if image is None:
-        return {"error": "請上傳商品圖片"}, None, None, None, None
+        yield {"error": "請上傳商品圖片"}, None, None, None, None
+        return
     
     try:
         # 準備檔案和表單資料
@@ -149,7 +155,6 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
         }
         
         # 創建串流請求
-        progress(0.1, desc="正在連接 API...")
         response = requests.post(
             f"{API_BASE_URL}/combined_service/selling_post",
             files=files,
@@ -162,10 +167,8 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
         carbon_footprint = None
         search_results = ""
         content_chunks = ""
-        is_first_chunk = True
-        progress_value = 0.2
-        
-        progress(progress_value, desc="正在處理回應...")
+        metadata_received = False
+        streaming_started = False
         
         # 處理串流回應
         for line in response.iter_lines():
@@ -178,38 +181,56 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
                     image_analysis = chunk_data.get("image_analysis", "")
                     carbon_footprint = chunk_data.get("carbon_footprint", {})
                     search_results = chunk_data.get("search_results", "")
-                    progress_value = 0.4
-                    progress(progress_value, desc="接收圖片分析、碳足跡和搜尋資料...")
+                    carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
+                    carbon_chart = create_carbon_chart(carbon_footprint) if carbon_footprint else None
+                    metadata_received = True
+                    
+                    # 傳遞初始元數據，不包含文案內容
+                    yield {
+                        "success": True,
+                        "full_content": "",
+                        "streaming_started": False
+                    }, image_analysis, carbon_text, carbon_chart, search_results
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":
                     content = chunk_data.get("chunk", "")
                     content_chunks += content
-                    progress_value = min(progress_value + 0.02, 0.9)
-                    progress(progress_value, desc="接收文案內容...")
+                    
+                    # 第一次接收內容時標記串流開始
+                    if not streaming_started:
+                        streaming_started = True
+                    
+                    # 即時返回更新的內容
+                    yield {
+                        "success": True,
+                        "full_content": content_chunks,
+                        "streaming_started": streaming_started
+                    }, image_analysis, carbon_text, carbon_chart, search_results
                 
                 # 處理結束標記
                 elif chunk_data.get("type") == "end":
-                    progress(1.0, desc="完成！")
+                    # 處理碳足跡文本表示和圖表
+                    carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
+                    carbon_chart = create_carbon_chart(carbon_footprint) if carbon_footprint else None
+                    
+                    # 最終更新
+                    yield {
+                        "success": True,
+                        "full_content": content_chunks,
+                        "streaming_started": True,
+                        "completed": True
+                    }, image_analysis, carbon_text, carbon_chart, search_results
                     break
                 
                 # 處理錯誤
                 elif chunk_data.get("type") == "error":
                     error_msg = chunk_data.get("error", "未知錯誤")
-                    return {"error": error_msg}, None, None, None, None
-        
-        # 處理碳足跡文本表示和圖表
-        carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
-        carbon_chart = create_carbon_chart(carbon_footprint) if carbon_footprint else None
-        
-        progress(1.0, desc="處理完成！")
-        return {
-            "success": True,
-            "full_content": content_chunks  # 完整文案，用於複製
-        }, image_analysis, carbon_text, carbon_chart, search_results
+                    yield {"error": error_msg}, None, None, None, None
+                    return
     
     except Exception as e:
-        return {"error": f"發生錯誤: {str(e)}"}, None, None, None, None
+        yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None
 
 # ================================= 社群徵文功能 =================================
 def process_seeking_post(product_description, purpose, expected_price, contact_info, trade_method, 
