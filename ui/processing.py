@@ -234,12 +234,14 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
 
 # ================================= 社群徵文功能 =================================
 def process_seeking_post(product_description, purpose, expected_price, contact_info, trade_method, 
-                        seeking_type, deadline, image, style, progress=gr.Progress()):
+                        seeking_type, deadline, image, style):
     """
     處理社群徵文功能，調用 API 並處理串流回應
-    """
-    progress(0, desc="準備請求...")
     
+    返回組件:
+    1. seeking_result_json: 完整結果的 JSON
+    2. seeking_image_analysis: 圖片分析結果
+    """
     try:
         # 準備表單資料
         data = {
@@ -260,7 +262,6 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
             files = {'image': (os.path.basename(image), open(image, 'rb'), 'image/jpeg')}
         
         # 創建串流請求
-        progress(0.1, desc="正在連接 API...")
         response = requests.post(
             f"{API_BASE_URL}/combined_service/seeking_post",
             files=files,
@@ -271,10 +272,8 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
         # 初始化結果變數
         image_analysis = ""
         content_chunks = ""
-        is_first_chunk = True
-        progress_value = 0.2
-        
-        progress(progress_value, desc="正在處理回應...")
+        metadata_received = False
+        streaming_started = False
         
         # 處理串流回應
         for line in response.iter_lines():
@@ -285,34 +284,50 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
                 # 處理元數據部分
                 if chunk_data.get("type") == "metadata":
                     image_analysis = chunk_data.get("image_analysis", "")
-                    progress_value = 0.4
-                    progress(progress_value, desc="接收圖片分析資料...")
+                    metadata_received = True
+                    
+                    # 傳遞初始元數據，不包含文案內容
+                    yield {
+                        "success": True,
+                        "full_content": "",
+                        "streaming_started": False
+                    }, image_analysis
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":
                     content = chunk_data.get("chunk", "")
                     content_chunks += content
-                    progress_value = min(progress_value + 0.02, 0.9)
-                    progress(progress_value, desc="接收文案內容...")
+                    
+                    # 第一次接收內容時標記串流開始
+                    if not streaming_started:
+                        streaming_started = True
+                    
+                    # 即時返回更新的內容
+                    yield {
+                        "success": True,
+                        "full_content": content_chunks,
+                        "streaming_started": streaming_started
+                    }, image_analysis
                 
                 # 處理結束標記
                 elif chunk_data.get("type") == "end":
-                    progress(1.0, desc="完成！")
+                    # 最終更新
+                    yield {
+                        "success": True,
+                        "full_content": content_chunks,
+                        "streaming_started": True,
+                        "completed": True
+                    }, image_analysis
                     break
                 
                 # 處理錯誤
                 elif chunk_data.get("type") == "error":
                     error_msg = chunk_data.get("error", "未知錯誤")
-                    return {"error": error_msg}, None
-        
-        progress(1.0, desc="處理完成！")
-        return {
-            "success": True,
-            "full_content": content_chunks  # 完整文案，用於複製
-        }, image_analysis
+                    yield {"error": error_msg}, None
+                    return
     
     except Exception as e:
-        return {"error": f"發生錯誤: {str(e)}"}, None
+        yield {"error": f"發生錯誤: {str(e)}"}, None
 
 # ================================= 輔助函數 =================================
 def split_content_sections(content):
@@ -538,14 +553,14 @@ def reset_all():
         "八成新", "", "", None,  # online 表單元件 (condition, brand, original_price, carbon_chart)
         
         # selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
-        # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search,
+        # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content
         None, "", "", "請私訊詳詢", "面交/郵寄皆可",  # selling 前5個
-        "normal", None, None, None, None, None,  # selling 後6個 (包含 carbon_chart 和 selling_search)
+        "normal", None, None, None, None, None, "",  # selling 後7個 (包含 carbon_chart, selling_search, selling_content)
         
         # seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
         # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
-        # seeking_image_analysis
+        # seeking_image_analysis, seeking_content
         "", "", "", "請私訊詳詢", "面交/郵寄皆可",  # seeking 前5個
         "buy", "越快越好", None, "normal", None,  # seeking 中5個
-        None  # seeking_image_analysis
+        None, ""  # seeking_image_analysis, seeking_content
     ]

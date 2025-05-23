@@ -272,36 +272,50 @@ def create_app():
                             with gr.Tab("圖片分析"):
                                 seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")
                 
-                # 連接按鈕事件
+                # 連接按鈕事件 - 使用串流模式，參考拍賣網站和社群賣文的實現
                 def start_seeking_processing():
-                    gr.Info("開始生成徵求文案，正在處理內容...")
-                    return None
+                    gr.Info("開始生成徵求文案，請稍候...")
+                    return gr.update(interactive=False, value="生成中...")
                 
                 def finish_seeking_processing(result):
                     if result and "success" in result and result["success"]:
                         gr.Info("徵求文案生成完成！")
-                        return result["full_content"]
                     elif result and "error" in result:
                         gr.Info(f"處理失敗：{result['error']}")
-                        return "處理失敗，請檢查輸入"
-                    else:
-                        return "處理失敗，請檢查輸入"
+                    return gr.update(interactive=True, value="生成徵求文案") if result and ("success" in result or "error" in result) else gr.update()
+                
+                def process_seeking_post_with_streaming(desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
+                    """處理社群徵文並直接串流輸出到各個組件"""
+                    for result in process_seeking_post(desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
+                        if len(result) == 2:  # 正常回應：(json, image_analysis)
+                            result_json, image_analysis = result
+                            
+                            # 從 result_json 中提取文案內容
+                            if result_json and "success" in result_json and result_json["success"]:
+                                content = result_json.get("full_content", "")
+                            else:
+                                content = ""
+                            
+                            yield result_json, image_analysis, content
+                        else:
+                            # 錯誤情況
+                            yield result + (None,)  # 補齊長度
                 
                 seeking_submit.click(
                     start_seeking_processing,
                     inputs=[],
-                    outputs=[]
+                    outputs=[seeking_submit]
                 ).then(
-                    process_seeking_post, 
+                    process_seeking_post_with_streaming, 
                     inputs=[
                         seeking_desc, seeking_purpose, seeking_price, seeking_contact, 
                         seeking_trade, seeking_type, seeking_deadline, seeking_image, seeking_style
                     ],
-                    outputs=[seeking_result_json, seeking_image_analysis]
+                    outputs=[seeking_result_json, seeking_image_analysis, seeking_content]
                 ).then(
                     finish_seeking_processing,
                     inputs=[seeking_result_json],
-                    outputs=[seeking_content]
+                    outputs=[seeking_submit]
                 )
                 
         
@@ -318,10 +332,10 @@ def create_app():
                 online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
                 online_condition, online_brand, online_original_price, online_carbon_chart,
                 selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
-                selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search,
+                selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content,
                 seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
                 seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
-                seeking_image_analysis
+                seeking_image_analysis, seeking_content
             ]
         )
         
