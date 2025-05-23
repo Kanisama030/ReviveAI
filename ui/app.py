@@ -1,0 +1,303 @@
+"""
+ReviveAI 主應用程式
+專為二手商品優化設計的系統，幫助您創建專業的商品描述
+"""
+
+import gradio as gr
+from styles import css
+from processing import (
+    process_online_sale, 
+    process_selling_post, 
+    process_seeking_post, 
+    reset_all
+)
+
+# ================================= 主應用程式 =================================
+def create_app():
+    # 初始化應用程式
+    with gr.Blocks(css=css, theme=gr.themes.Base()) as app:
+        # 添加頁面標題
+        gr.Markdown("# ReviveAI - 二手商品優化系統", elem_classes=["page-title"])
+        
+        with gr.Row():
+            # 右上角的重置按鈕
+            reset_btn = gr.Button("重置所有輸入", variant="stop", elem_classes=["reset-btn"])
+        
+        # 主要標籤頁
+        with gr.Tabs() as tabs:
+            # =============== 拍賣網站 TAB ===============
+            with gr.Tab("拍賣網站"):
+                with gr.Row():
+                    # 左側輸入區域
+                    with gr.Column(scale=1):
+                        online_image = gr.Image(label="上傳商品圖片", type="filepath")
+                        online_desc = gr.Textbox(label="商品描述", placeholder="請輸入商品描述...", lines=5)
+                        online_style = gr.Radio(
+                            ["normal", "casual", "formal", "story"], 
+                            label="文案風格", 
+                            value="normal", 
+                            info="normal=標準專業, casual=輕鬆活潑, formal=正式商務, story=故事體驗"
+                        )
+                        online_submit = gr.Button("生成拍賣文案", variant="primary", elem_classes=["submit-btn"])
+                    
+                    # 右側輸出區域
+                    with gr.Column(scale=2):
+                        with gr.Tabs() as online_output_tabs:
+                            with gr.Tab("文案輸出"):
+                                online_result_json = gr.JSON(visible=False)  # 儲存完整結果
+                                online_title = gr.Textbox(label="優化商品標題", lines=2, interactive=False, show_copy_button=True)
+                                online_basic_info = gr.Textbox(label="商品詳細內容", lines=15, interactive=False, show_copy_button=True)
+                                
+                            with gr.Tab("碳足跡"):
+                                online_carbon = gr.Markdown()
+                                
+                            with gr.Tab("圖片分析"):
+                                online_image_analysis = gr.Markdown(label="圖片分析結果")
+                                
+                            with gr.Tab("網路搜尋結果"):
+                                online_search = gr.Markdown(label="網路搜尋結果")
+                
+                # 連接按鈕事件
+                def start_online_processing():
+                    gr.Info("開始處理拍賣文案，請稍候...")
+                    return gr.update(interactive=False, value="生成中...")
+                
+                def finish_online_processing(result):
+                    if result and "success" in result and result["success"]:
+                        gr.Info("拍賣文案生成完成！")
+                    elif result and "error" in result:
+                        gr.Info(f"處理失敗：{result['error']}")
+                    return gr.update(interactive=True, value="生成拍賣文案") if result and ("success" in result or "error" in result) else gr.update()
+                
+                online_submit.click(
+                    start_online_processing,
+                    inputs=[],
+                    outputs=[online_submit]
+                ).then(
+                    process_online_sale, 
+                    inputs=[online_desc, online_image, online_style],
+                    outputs=[online_result_json, online_image_analysis, online_title, online_basic_info, online_carbon, online_search]
+                ).then(
+                    finish_online_processing,
+                    inputs=[online_result_json],
+                    outputs=[online_submit]
+                )
+                
+            # =============== 社群賣文 TAB ===============
+            with gr.Tab("社群賣文"):
+                with gr.Row():
+                    # 左側輸入區域
+                    with gr.Column(scale=1):
+                        selling_image = gr.Image(label="上傳商品圖片", type="filepath")
+                        selling_desc = gr.Textbox(label="商品描述", placeholder="請輸入商品描述...", lines=4)
+                        selling_price = gr.Textbox(label="商品售價", placeholder="例如：$18,000")
+                        selling_contact = gr.Textbox(label="聯絡方式", value="請私訊詳詢")
+                        selling_trade = gr.Textbox(label="交易方式", value="面交/郵寄皆可")
+                        selling_style = gr.Radio(
+                            ["normal", "storytelling", "minimalist", "bargain"], 
+                            label="文案風格", 
+                            value="normal", 
+                            info="normal=標準實用, storytelling=故事體驗, minimalist=簡約精要, bargain=超值優惠"
+                        )
+                        selling_submit = gr.Button("生成社群賣文", variant="primary", elem_classes=["submit-btn"])
+                    
+                    # 右側輸出區域
+                    with gr.Column(scale=2):
+                        with gr.Tabs() as selling_output_tabs:
+                            with gr.Tab("文案輸出"):
+                                selling_result_json = gr.JSON(visible=False)  # 儲存完整結果
+                                selling_content = gr.Textbox(label="社群銷售文案", lines=15, interactive=False, show_copy_button=True)
+                                selling_copy_btn = gr.Button("複製文案", variant="secondary", elem_classes=["copy-btn"])
+                                
+                            with gr.Tab("碳足跡"):
+                                selling_carbon = gr.Markdown()
+                                
+                            with gr.Tab("圖片分析"):
+                                selling_image_analysis = gr.Markdown(label="圖片分析結果")
+                
+                # 連接按鈕事件
+                def start_selling_processing():
+                    gr.Info("開始生成社群賣文，正在分析圖片和處理內容...")
+                    return None
+                
+                def finish_selling_processing(result):
+                    if result and "success" in result and result["success"]:
+                        gr.Info("社群賣文生成完成！")
+                        return result["full_content"]
+                    elif result and "error" in result:
+                        gr.Info(f"處理失敗：{result['error']}")
+                        return "處理失敗，請檢查輸入"
+                    else:
+                        return "處理失敗，請檢查輸入"
+                
+                selling_submit.click(
+                    start_selling_processing,
+                    inputs=[],
+                    outputs=[]
+                ).then(
+                    process_selling_post, 
+                    inputs=[selling_desc, selling_image, selling_price, selling_contact, selling_trade, selling_style],
+                    outputs=[selling_result_json, selling_image_analysis, selling_carbon]
+                ).then(
+                    finish_selling_processing,
+                    inputs=[selling_result_json],
+                    outputs=[selling_content]
+                )
+                
+                # 複製按鈕事件
+                selling_copy_btn.click(
+                    lambda x: x, 
+                    inputs=[selling_content], 
+                    outputs=[]
+                ).then(
+                    None,
+                    None,
+                    None,
+                    js="""
+                    (content) => {
+                        navigator.clipboard.writeText(content);
+                        return [];
+                    }
+                    """
+                )
+            
+            # =============== 社群徵文 TAB ===============
+            with gr.Tab("社群徵文"):
+                with gr.Row():
+                    # 左側輸入區域
+                    with gr.Column(scale=1):
+                        seeking_desc = gr.Textbox(label="徵求商品描述", placeholder="請輸入想徵求的商品描述...", lines=3)
+                        seeking_purpose = gr.Textbox(label="徵求目的", placeholder="請說明徵求目的...", lines=2)
+                        seeking_price = gr.Textbox(label="期望價格", placeholder="例如：希望不超過 $5,000")
+                        seeking_contact = gr.Textbox(label="聯絡方式", value="請私訊詳詢")
+                        seeking_trade = gr.Textbox(label="交易方式", value="面交/郵寄皆可")
+                        seeking_type = gr.Radio(
+                            ["buy", "rent"], 
+                            label="徵求類型", 
+                            value="buy", 
+                            info="buy=購買, rent=租借"
+                        )
+                        seeking_deadline = gr.Textbox(label="徵求時效", value="越快越好")
+                        seeking_image = gr.Image(label="上傳參考圖片 (選填)", type="filepath")
+                        seeking_style = gr.Radio(
+                            ["normal", "urgent", "budget", "collector"], 
+                            label="文案風格", 
+                            value="normal", 
+                            info="normal=標準親切, urgent=急需緊急, budget=預算有限, collector=收藏愛好"
+                        )
+                        seeking_submit = gr.Button("生成徵求文案", variant="primary", elem_classes=["submit-btn"])
+                    
+                    # 右側輸出區域
+                    with gr.Column(scale=2):
+                        with gr.Tabs() as seeking_output_tabs:
+                            with gr.Tab("文案輸出"):
+                                seeking_result_json = gr.JSON(visible=False)  # 儲存完整結果
+                                seeking_content = gr.Textbox(label="社群徵求文案", lines=15, interactive=False, show_copy_button=True)
+                                seeking_copy_btn = gr.Button("複製文案", variant="secondary", elem_classes=["copy-btn"])
+                                
+                            with gr.Tab("圖片分析"):
+                                seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")
+                
+                # 連接按鈕事件
+                def start_seeking_processing():
+                    gr.Info("開始生成徵求文案，正在處理內容...")
+                    return None
+                
+                def finish_seeking_processing(result):
+                    if result and "success" in result and result["success"]:
+                        gr.Info("徵求文案生成完成！")
+                        return result["full_content"]
+                    elif result and "error" in result:
+                        gr.Info(f"處理失敗：{result['error']}")
+                        return "處理失敗，請檢查輸入"
+                    else:
+                        return "處理失敗，請檢查輸入"
+                
+                seeking_submit.click(
+                    start_seeking_processing,
+                    inputs=[],
+                    outputs=[]
+                ).then(
+                    process_seeking_post, 
+                    inputs=[
+                        seeking_desc, seeking_purpose, seeking_price, seeking_contact, 
+                        seeking_trade, seeking_type, seeking_deadline, seeking_image, seeking_style
+                    ],
+                    outputs=[seeking_result_json, seeking_image_analysis]
+                ).then(
+                    finish_seeking_processing,
+                    inputs=[seeking_result_json],
+                    outputs=[seeking_content]
+                )
+                
+                # 複製按鈕事件
+                seeking_copy_btn.click(
+                    lambda x: x, 
+                    inputs=[seeking_content], 
+                    outputs=[]
+                ).then(
+                    None,
+                    None,
+                    None,
+                    js="""
+                    (content) => {
+                        navigator.clipboard.writeText(content);
+                        return [];
+                    }
+                    """
+                )
+        
+        # 重置按鈕事件
+        def reset_with_notification():
+            gr.Info("已重置所有輸入和輸出！")
+            return reset_all()
+        
+        reset_btn.click(
+            reset_with_notification,
+            inputs=[],
+            outputs=[
+                online_image, online_desc, online_style, online_result_json, online_image_analysis, 
+                online_title, online_basic_info, online_carbon, online_search,
+                selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
+                selling_style, selling_result_json, selling_image_analysis, selling_carbon,
+                seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
+                seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
+                seeking_image_analysis
+            ]
+        )
+        
+        # 底部介紹與使用教學
+        gr.Markdown("""
+        ## 使用教學與系統介紹
+        
+        ReviveAI 是一個專為二手商品優化設計的系統，幫助您創建專業的商品描述，增加曝光和銷售機會。
+        
+        ### 使用方法：
+        
+        1. 選擇您想使用的服務類型：拍賣網站、社群賣文或社群徵文
+        2. 上傳商品圖片（徵文功能為選填）和填寫相關資訊
+        3. 選擇適合的文案風格
+        4. 點擊「生成文案」按鈕
+        5. 在右側查看生成的文案內容，並可使用複製按鈕複製文案
+        
+        ### 系統特色：
+        
+        - **智能圖片分析**：自動分析商品圖片，提取關鍵特徵
+        - **優化內容生成**：根據不同平台特性生成最適合的文案
+        - **碳足跡計算**：計算選購二手商品的環境效益，幫助您了解對環境的貢獻
+        - **串流生成**：實時生成和顯示文案內容，讓您能夠即時看到結果
+        
+        ### 永續價值
+        
+        使用 ReviveAI 系統不只是為了創建更好的二手商品描述，也是在為環境永續發展盡一份心力。
+        每次選擇購買或銷售二手商品，都能減少新商品生產所帶來的碳排放和資源消耗。
+        
+        感謝您選擇 ReviveAI，讓我們一起為永續未來努力！
+        """, elem_classes=["footer-info"])
+        
+    return app
+
+# 啟動應用程式
+if __name__ == "__main__":
+    app = create_app()
+    app.launch()
