@@ -179,7 +179,6 @@ def create_app():
                             with gr.Tab("文案輸出"):
                                 selling_result_json = gr.JSON(visible=False)  # 儲存完整結果
                                 selling_content = gr.Textbox(label="社群銷售文案", lines=45, interactive=False, show_copy_button=True)
-                                selling_copy_btn = gr.Button("複製文案", variant="secondary", elem_classes=["copy-btn"])
                                 
                             with gr.Tab("碳足跡圖表"):
                                 selling_carbon_chart = gr.Plot(label="環保效益視覺化")
@@ -222,20 +221,6 @@ def create_app():
                     outputs=[selling_content]
                 )
                 
-                # 複製按鈕事件
-                selling_copy_btn.click(
-                    lambda: None,  # 不接收輸入也不返回輸出
-                    inputs=[], 
-                    outputs=[],
-                    js="""
-                    () => {
-                        const contentElement = document.querySelector('textarea[data-testid*="selling_content"]');
-                        if (contentElement) {
-                            navigator.clipboard.writeText(contentElement.value);
-                        }
-                    }
-                    """
-                )
             
             # =============== 社群徵文 TAB ===============
             with gr.Tab("社群徵文"):
@@ -269,7 +254,6 @@ def create_app():
                             with gr.Tab("文案輸出"):
                                 seeking_result_json = gr.JSON(visible=False)  # 儲存完整結果
                                 seeking_content = gr.Textbox(label="社群徵求文案", lines=45, interactive=False, show_copy_button=True)
-                                seeking_copy_btn = gr.Button("複製文案", variant="secondary", elem_classes=["copy-btn"])
                                 
                             with gr.Tab("圖片分析"):
                                 seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")
@@ -306,20 +290,6 @@ def create_app():
                     outputs=[seeking_content]
                 )
                 
-                # 複製按鈕事件
-                seeking_copy_btn.click(
-                    lambda: None,  # 不接收輸入也不返回輸出
-                    inputs=[], 
-                    outputs=[],
-                    js="""
-                    () => {
-                        const contentElement = document.querySelector('textarea[data-testid*="seeking_content"]');
-                        if (contentElement) {
-                            navigator.clipboard.writeText(contentElement.value);
-                        }
-                    }
-                    """
-                )
         
         # 重置按鈕事件
         def reset_with_notification():
@@ -354,7 +324,7 @@ def create_app():
         3. 在拍賣網站功能中，可填寫詳細的商品資訊表單（使用時間、狀態、品牌等）
         4. 選擇適合的文案風格
         5. 點擊「生成文案」按鈕
-        6. 在右側查看生成的文案內容，並可使用複製按鈕複製文案
+        6. 在右側查看生成的文案內容，文案框右上角有複製圖示可直接複製文案
         7. 查看「碳足跡數值」tab 了解環保效益的詳細數據
         8. 查看「碳足跡圖表」tab 觀看互動式環保效益視覺化圖表
         
