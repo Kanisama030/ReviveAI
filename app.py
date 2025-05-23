@@ -524,8 +524,19 @@ def create_app():
                                 online_search = gr.Markdown(label="網路搜尋結果")
                 
                 # 連接按鈕事件
+                def start_online_processing():
+                    gr.Info("開始處理拍賣文案，請稍候...")
+                    return gr.update(interactive=False, value="生成中...")
+                
+                def finish_online_processing(result):
+                    if result and "success" in result and result["success"]:
+                        gr.Info("拍賣文案生成完成！")
+                    elif result and "error" in result:
+                        gr.Info(f"處理失敗：{result['error']}")
+                    return gr.update(interactive=True, value="生成拍賣文案") if result and ("success" in result or "error" in result) else gr.update()
+                
                 online_submit.click(
-                    lambda: gr.update(interactive=False, value="生成中..."),
+                    start_online_processing,
                     inputs=[],
                     outputs=[online_submit]
                 ).then(
@@ -533,7 +544,7 @@ def create_app():
                     inputs=[online_desc, online_image, online_style],
                     outputs=[online_result_json, online_image_analysis, online_title, online_basic_info, online_carbon, online_search]
                 ).then(
-                    lambda result: gr.update(interactive=True, value="生成拍賣文案") if result and ("success" in result or "error" in result) else gr.update(),
+                    finish_online_processing,
                     inputs=[online_result_json],
                     outputs=[online_submit]
                 )
@@ -573,12 +584,30 @@ def create_app():
                                 selling_image_analysis = gr.Markdown(label="圖片分析結果")
                 
                 # 連接按鈕事件
+                def start_selling_processing():
+                    gr.Info("開始生成社群賣文，正在分析圖片和處理內容...")
+                    return None
+                
+                def finish_selling_processing(result):
+                    if result and "success" in result and result["success"]:
+                        gr.Info("社群賣文生成完成！")
+                        return result["full_content"]
+                    elif result and "error" in result:
+                        gr.Info(f"處理失敗：{result['error']}")
+                        return "處理失敗，請檢查輸入"
+                    else:
+                        return "處理失敗，請檢查輸入"
+                
                 selling_submit.click(
+                    start_selling_processing,
+                    inputs=[],
+                    outputs=[]
+                ).then(
                     process_selling_post, 
                     inputs=[selling_desc, selling_image, selling_price, selling_contact, selling_trade, selling_style],
                     outputs=[selling_result_json, selling_image_analysis, selling_carbon]
                 ).then(
-                    lambda x: x["full_content"] if x and "success" in x and x["success"] else "處理失敗，請檢查輸入",
+                    finish_selling_processing,
                     inputs=[selling_result_json],
                     outputs=[selling_content]
                 )
@@ -638,7 +667,25 @@ def create_app():
                                 seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")
                 
                 # 連接按鈕事件
+                def start_seeking_processing():
+                    gr.Info("開始生成徵求文案，正在處理內容...")
+                    return None
+                
+                def finish_seeking_processing(result):
+                    if result and "success" in result and result["success"]:
+                        gr.Info("徵求文案生成完成！")
+                        return result["full_content"]
+                    elif result and "error" in result:
+                        gr.Info(f"處理失敗：{result['error']}")
+                        return "處理失敗，請檢查輸入"
+                    else:
+                        return "處理失敗，請檢查輸入"
+                
                 seeking_submit.click(
+                    start_seeking_processing,
+                    inputs=[],
+                    outputs=[]
+                ).then(
                     process_seeking_post, 
                     inputs=[
                         seeking_desc, seeking_purpose, seeking_price, seeking_contact, 
@@ -646,7 +693,7 @@ def create_app():
                     ],
                     outputs=[seeking_result_json, seeking_image_analysis]
                 ).then(
-                    lambda x: x["full_content"] if x and "success" in x and x["success"] else "處理失敗，請檢查輸入",
+                    finish_seeking_processing,
                     inputs=[seeking_result_json],
                     outputs=[seeking_content]
                 )
@@ -669,8 +716,12 @@ def create_app():
                 )
         
         # 重置按鈕事件
+        def reset_with_notification():
+            gr.Info("已重置所有輸入和輸出！")
+            return reset_all()
+        
         reset_btn.click(
-            reset_all,
+            reset_with_notification,
             inputs=[],
             outputs=[
                 online_image, online_desc, online_style, online_result_json, online_image_analysis, 
