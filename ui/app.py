@@ -175,7 +175,7 @@ def create_app():
                         with gr.Tabs() as selling_output_tabs:
                             with gr.Tab("文案輸出"):
                                 selling_result_json = gr.JSON(visible=False)  # 儲存完整結果
-                                selling_content = gr.Textbox(label="社群銷售文案", lines=15, interactive=False, show_copy_button=True)
+                                selling_content = gr.Textbox(label="社群銷售文案", lines=45, interactive=False, show_copy_button=True)
                                 selling_copy_btn = gr.Button("複製文案", variant="secondary", elem_classes=["copy-btn"])
                                 
                             with gr.Tab("碳足跡"):
@@ -261,7 +261,7 @@ def create_app():
                         with gr.Tabs() as seeking_output_tabs:
                             with gr.Tab("文案輸出"):
                                 seeking_result_json = gr.JSON(visible=False)  # 儲存完整結果
-                                seeking_content = gr.Textbox(label="社群徵求文案", lines=15, interactive=False, show_copy_button=True)
+                                seeking_content = gr.Textbox(label="社群徵求文案", lines=45, interactive=False, show_copy_button=True)
                                 seeking_copy_btn = gr.Button("複製文案", variant="secondary", elem_classes=["copy-btn"])
                                 
                             with gr.Tab("圖片分析"):
