@@ -19,19 +19,70 @@ css = """
     color: #ffffff;
 }
 
-/* 自定義標籤頁選擇顏色 */
-.tabs > .tab-nav > button.selected {
+/* 自定義標籤頁選擇顏色 - 強化綠色版本 */
+.gradio-container .tabs .tab-nav button.selected,
+.gradio-container .tabs .tab-nav button[data-tab-select="true"],
+.gradio-container .tabs button.selected,
+.gradio-container div.tab-nav button.selected,
+.gradio-container div.tab-nav button[aria-selected="true"],
+.gradio-container .tab-nav button.selected,
+.gradio-container button.selected[data-testid]:not(.reset-btn):not(.submit-btn):not(.copy-btn) {
     border-color: var(--primary-color) !important;
     color: var(--primary-color) !important;
+    background-color: rgba(109, 226, 156, 0.15) !important;
+    border-bottom: 2px solid var(--primary-color) !important;
+    border-bottom-color: var(--primary-color) !important;
+}
+
+/* 強制覆蓋所有可能的藍色樣式 */
+.gradio-container button.selected:not(.reset-btn):not(.submit-btn):not(.copy-btn),
+.gradio-container .tabs button[aria-selected="true"],
+.gradio-container .tabs button[data-tab-id].selected {
+    color: var(--primary-color) !important;
+    border-bottom: 2px solid var(--primary-color) !important;
+    border-bottom-color: var(--primary-color) !important;
     background-color: rgba(109, 226, 156, 0.1) !important;
 }
 
-.tab-nav button.selected {
-    color: var(--primary-color) !important; /* 被選中 Tab 的文字顏色 */
+/* 針對所有 tab 相關元素的底線顏色 */
+.gradio-container .tabs [role="tab"][aria-selected="true"],
+.gradio-container .tabs button[role="tab"][aria-selected="true"],
+.gradio-container [data-testid*="tab"] button.selected,
+.gradio-container .tab-nav > button.selected {
+    border-bottom: 2px solid var(--primary-color) !important;
+    border-bottom-color: var(--primary-color) !important;
+    color: var(--primary-color) !important;
 }
 
-.tabs > .tab-nav > button:hover {
+/* hover 效果 */
+.gradio-container .tabs .tab-nav button:hover,
+.gradio-container .tabs > .tab-nav > button:hover,
+.gradio-container .tab-nav button:hover {
     color: var(--primary-color) !important;
+    background-color: rgba(109, 226, 156, 0.05) !important;
+    border-bottom-color: rgba(109, 226, 156, 0.5) !important;
+}
+
+/* 針對 Gradio v4+ 的額外樣式 */
+.gradio-container .tabs > div > .tab-nav > button.selected,
+.gradio-container .tabitem button.selected,
+.gradio-container button[data-tab-select="true"],
+.gradio-container .tabs > .tab-nav > button[aria-selected="true"] {
+    color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    border-bottom-color: var(--primary-color) !important;
+    background: rgba(109, 226, 156, 0.15) !important;
+}
+
+/* 全域覆蓋任何藍色底線 */
+.gradio-container * {
+    --primary-600: var(--primary-color) !important;
+    --primary-500: var(--primary-color) !important;
+}
+
+/* 特別針對藍色樣式的覆蓋 */
+.gradio-container .tabs button {
+    --color-accent: var(--primary-color) !important;
 }
 
 .tabs {
