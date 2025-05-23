@@ -31,7 +31,45 @@ def create_app():
                     # 左側輸入區域
                     with gr.Column(scale=1):
                         online_image = gr.Image(label="上傳商品圖片", type="filepath")
-                        online_desc = gr.Textbox(label="商品描述", placeholder="請輸入商品描述...", lines=5)
+                        
+                        # 二手商品表單區域
+                        gr.Markdown("### 商品資訊", elem_classes=["form-section"])
+                        
+                        online_usage_time = gr.Slider(
+                            minimum=0, 
+                            maximum=20, 
+                            value=2, 
+                            step=0.5,
+                            label="使用時間 (年)",
+                            info="商品已使用多久時間"
+                        )
+                        
+                        online_condition = gr.Dropdown(
+                            choices=["全新未拆", "近全新", "九成新", "八成新", "七成新", "六成新", "功能正常"], 
+                            value="八成新",
+                            label="商品狀態",
+                            info="請選擇商品的保存狀況"
+                        )
+                        
+                        online_brand = gr.Textbox(
+                            label="品牌", 
+                            placeholder="例如：Apple、Sony、Nike...",
+                            info="商品的品牌名稱"
+                        )
+                        
+                        online_original_price = gr.Textbox(
+                            label="原價 (選填)", 
+                            placeholder="例如：NT$ 25,000",
+                            info="商品的原始購買價格"
+                        )
+                        
+                        online_desc = gr.Textbox(
+                            label="其他補充說明 (選填)", 
+                            placeholder="可以補充購買原因、使用心得、商品特色等...", 
+                            lines=3,
+                            info="任何額外的商品資訊或補充說明"
+                        )
+                        
                         online_style = gr.Radio(
                             ["normal", "casual", "formal", "story"], 
                             label="文案風格", 
@@ -46,7 +84,7 @@ def create_app():
                             with gr.Tab("文案輸出"):
                                 online_result_json = gr.JSON(visible=False)  # 儲存完整結果
                                 online_title = gr.Textbox(label="優化商品標題", lines=2, interactive=False, show_copy_button=True)
-                                online_basic_info = gr.Textbox(label="商品詳細內容", lines=15, interactive=False, show_copy_button=True)
+                                online_basic_info = gr.Textbox(label="商品詳細內容", lines=45, interactive=False, show_copy_button=True)
                                 
                             with gr.Tab("碳足跡"):
                                 online_carbon = gr.Markdown()
@@ -56,6 +94,31 @@ def create_app():
                                 
                             with gr.Tab("網路搜尋結果"):
                                 online_search = gr.Markdown(label="網路搜尋結果")
+                
+                # 組合表單資訊函數
+                def combine_form_info(desc, usage_time, condition, brand, original_price):
+                    # 構建額外的描述資訊
+                    extra_info = []
+                    if usage_time > 0:
+                        extra_info.append(f"使用{usage_time}年")
+                    if condition:
+                        extra_info.append(f"狀態：{condition}")
+                    if brand:
+                        extra_info.append(f"品牌：{brand}")
+                    if original_price:
+                        extra_info.append(f"原價：{original_price}")
+                    
+                    combined_desc = ""
+                    if extra_info:
+                        combined_desc = "商品資訊：" + "、".join(extra_info)
+                    
+                    if desc:
+                        if combined_desc:
+                            combined_desc += "\n\n其他補充：" + desc
+                        else:
+                            combined_desc = desc
+                    
+                    return combined_desc
                 
                 # 連接按鈕事件
                 def start_online_processing():
@@ -69,13 +132,19 @@ def create_app():
                         gr.Info(f"處理失敗：{result['error']}")
                     return gr.update(interactive=True, value="生成拍賣文案") if result and ("success" in result or "error" in result) else gr.update()
                 
+                def process_online_sale_with_form(desc, image, style, usage_time, condition, brand, original_price):
+                    # 組合表單資訊
+                    combined_desc = combine_form_info(desc, usage_time, condition, brand, original_price)
+                    # 調用原有的處理函數並正確處理 generator
+                    yield from process_online_sale(combined_desc, image, style)
+                
                 online_submit.click(
                     start_online_processing,
                     inputs=[],
                     outputs=[online_submit]
                 ).then(
-                    process_online_sale, 
-                    inputs=[online_desc, online_image, online_style],
+                    process_online_sale_with_form, 
+                    inputs=[online_desc, online_image, online_style, online_usage_time, online_condition, online_brand, online_original_price],
                     outputs=[online_result_json, online_image_analysis, online_title, online_basic_info, online_carbon, online_search]
                 ).then(
                     finish_online_processing,
@@ -257,7 +326,8 @@ def create_app():
             inputs=[],
             outputs=[
                 online_image, online_desc, online_style, online_result_json, online_image_analysis, 
-                online_title, online_basic_info, online_carbon, online_search,
+                online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
+                online_condition, online_brand, online_original_price,
                 selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
                 selling_style, selling_result_json, selling_image_analysis, selling_carbon,
                 seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
@@ -276,13 +346,15 @@ def create_app():
         
         1. 選擇您想使用的服務類型：拍賣網站、社群賣文或社群徵文
         2. 上傳商品圖片（徵文功能為選填）和填寫相關資訊
-        3. 選擇適合的文案風格
-        4. 點擊「生成文案」按鈕
-        5. 在右側查看生成的文案內容，並可使用複製按鈕複製文案
+        3. 在拍賣網站功能中，可填寫詳細的商品資訊表單（使用時間、狀態、品牌等）
+        4. 選擇適合的文案風格
+        5. 點擊「生成文案」按鈕
+        6. 在右側查看生成的文案內容，並可使用複製按鈕複製文案
         
         ### 系統特色：
         
         - **智能圖片分析**：自動分析商品圖片，提取關鍵特徵
+        - **二手商品表單**：專為二手商品設計的詳細資訊表單，包含使用時間、狀態、品牌等
         - **優化內容生成**：根據不同平台特性生成最適合的文案
         - **碳足跡計算**：計算選購二手商品的環境效益，幫助您了解對環境的貢獻
         - **串流生成**：實時生成和顯示文案內容，讓您能夠即時看到結果

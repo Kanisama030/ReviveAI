@@ -19,5 +19,3 @@ credentials/
 .ipynb_checkpoints
 
 requirements.in
-
-gradio-llm.txt

@@ -350,6 +350,24 @@ def reset_all():
     """
     重置所有輸入和輸出
     """
-    return [None, "", "normal", None, None, None, None, None, None,
-            None, "", "", "請私訊詳詢", "面交/郵寄皆可", "normal", None, None, None,
-            "", "", "", "請私訊詳詢", "面交/郵寄皆可", "buy", "越快越好", None, "normal", None, None]
+    # 按照 app.py 中 reset_btn.click 的 outputs 順序返回重置值
+    return [
+        # online_image, online_desc, online_style, online_result_json, online_image_analysis, 
+        # online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
+        # online_condition, online_brand, online_original_price,
+        None, "", "normal", None, None,  # online 前5個
+        None, None, None, None, 2,  # online 後5個 (usage_time 預設為 2)
+        "八成新", "", "",  # online 表單元件 (condition, brand, original_price)
+        
+        # selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
+        # selling_style, selling_result_json, selling_image_analysis, selling_carbon,
+        None, "", "", "請私訊詳詢", "面交/郵寄皆可",  # selling 前5個
+        "normal", None, None, None,  # selling 後4個
+        
+        # seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
+        # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
+        # seeking_image_analysis
+        "", "", "", "請私訊詳詢", "面交/郵寄皆可",  # seeking 前5個
+        "buy", "越快越好", None, "normal", None,  # seeking 中5個
+        None  # seeking_image_analysis
+    ]
