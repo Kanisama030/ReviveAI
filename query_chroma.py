@@ -225,6 +225,7 @@ async def ai_search_products(product_description: str):
             "carbon_footprint": float(results['metadatas'][0][best_index]['carbon_footprint']),
             "sector": results['metadatas'][0][best_index].get('sector', '未知'),
             "cosine_distance": results['distances'][0][best_index],
+            "similarity_score": 1 - results['distances'][0][best_index],
             "details": results['documents'][0][best_index],
             "selection_reason": selection_reason
         }
