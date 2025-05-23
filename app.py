@@ -79,7 +79,7 @@ button:hover {
 """
 
 # ================================= 拍賣網站功能 =================================
-def process_online_sale(description, image, style, progress=gr.Progress()):
+def process_online_sale(description, image, style):
     """
     處理拍賣網站文案功能，調用 API 並處理串流回應
     
@@ -91,8 +91,6 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
     5. online_carbon: 碳足跡分析
     6. online_search: 網路搜尋結果
     """
-    progress(0, desc="準備請求...")
-    
     if image is None:
         yield {"error": "請上傳商品圖片"}, None, None, None, None, None
         return
@@ -106,7 +104,6 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
         }
         
         # 創建串流請求
-        progress(0.1, desc="正在連接 API...")
         response = requests.post(
             f"{API_BASE_URL}/combined_service/online_sale_stream",
             files=files,
@@ -119,12 +116,9 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
         carbon_footprint = None
         search_results = ""
         content_chunks = ""
-        is_first_chunk = True
-        progress_value = 0.2
         current_title = ""
-        
-        progress(progress_value, desc="正在處理回應...")
         metadata_received = False
+        streaming_started = False
         
         # 處理串流回應
         for line in response.iter_lines():
@@ -138,23 +132,23 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
                     search_results = chunk_data.get("search_results", "")
                     carbon_footprint = chunk_data.get("carbon_footprint", {})
                     carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
-                    
-                    progress_value = 0.4
-                    progress(progress_value, desc="接收圖片分析和碳足跡資料...")
                     metadata_received = True
                     
                     # 傳遞初始元數據，不包含文案內容
                     yield {
                         "success": True,
-                        "full_content": ""
+                        "full_content": "",
+                        "streaming_started": False
                     }, image_analysis, "", "", carbon_text, search_results
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":
                     content = chunk_data.get("chunk", "")
                     content_chunks += content
-                    progress_value = min(progress_value + 0.02, 0.9)
-                    progress(progress_value, desc="接收文案內容...")
+                    
+                    # 第一次接收內容時標記串流開始
+                    if not streaming_started:
+                        streaming_started = True
                     
                     # 處理目前已有的內容
                     current_sections = split_content_sections(content_chunks)
@@ -164,13 +158,12 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
                     # 即時返回更新的內容
                     yield {
                         "success": True,
-                        "full_content": content_chunks
+                        "full_content": content_chunks,
+                        "streaming_started": streaming_started
                     }, image_analysis, current_title, current_content, carbon_text, search_results
                 
                 # 處理結束標記
                 elif chunk_data.get("type") == "end":
-                    progress(1.0, desc="完成！")
-                    
                     # 處理碳足跡文本表示
                     carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
                     
@@ -180,7 +173,9 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
                     # 最終更新
                     yield {
                         "success": True,
-                        "full_content": content_chunks
+                        "full_content": content_chunks,
+                        "streaming_started": True,
+                        "completed": True
                     }, image_analysis, content_sections["title"], content_sections["basic_info"], carbon_text, search_results
                     break
                 
@@ -189,8 +184,6 @@ def process_online_sale(description, image, style, progress=gr.Progress()):
                     error_msg = chunk_data.get("error", "未知錯誤")
                     yield {"error": error_msg}, None, None, None, None, None
                     return
-                    
-        progress(1.0, desc="處理完成！")
     
     except Exception as e:
         yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None, None
@@ -481,9 +474,17 @@ def create_app():
                 
                 # 連接按鈕事件
                 online_submit.click(
+                    lambda: gr.update(interactive=False, value="生成中..."),
+                    inputs=[],
+                    outputs=[online_submit]
+                ).then(
                     process_online_sale, 
                     inputs=[online_desc, online_image, online_style],
                     outputs=[online_result_json, online_image_analysis, online_title, online_basic_info, online_carbon, online_search]
+                ).then(
+                    lambda result: gr.update(interactive=True, value="生成拍賣文案") if result and ("success" in result or "error" in result) else gr.update(),
+                    inputs=[online_result_json],
+                    outputs=[online_submit]
                 )
                 
                 # 複製按鈕事件
