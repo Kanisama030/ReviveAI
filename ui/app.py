@@ -160,10 +160,49 @@ def create_app():
                     # 左側輸入區域
                     with gr.Column(scale=1):
                         selling_image = gr.Image(label="上傳商品圖片", type="filepath")
-                        selling_desc = gr.Textbox(label="商品描述", placeholder="請輸入商品描述...", lines=4)
+                        
+                        # 二手商品表單區域
+                        gr.Markdown("### 商品資訊", elem_classes=["form-section"])
+                        
+                        selling_product_name = gr.Textbox(
+                            label="商品名稱", 
+                            placeholder="例如：iPhone 14 Pro、MacBook Pro、Nike Air Jordan...",
+                            info="請輸入商品的名稱或型號"
+                        )
+                        
+                        selling_usage_time = gr.Slider(
+                            minimum=0, 
+                            maximum=20, 
+                            value=2, 
+                            step=0.5,
+                            label="使用時間 (年)",
+                            info="商品已使用多久時間"
+                        )
+                        
+                        selling_condition = gr.Dropdown(
+                            choices=["全新未拆", "近全新", "九成新", "八成新", "七成新", "六成新", "功能正常"], 
+                            value="八成新",
+                            label="商品狀態",
+                            info="請選擇商品的保存狀況"
+                        )
+                        
+                        selling_brand = gr.Textbox(
+                            label="品牌", 
+                            placeholder="例如：Apple、Sony、Nike...",
+                            info="商品的品牌名稱"
+                        )
+                        
                         selling_price = gr.Textbox(label="商品售價", placeholder="例如：$18,000")
                         selling_contact = gr.Textbox(label="聯絡方式", value="請私訊詳詢")
                         selling_trade = gr.Textbox(label="交易方式", value="面交/郵寄皆可")
+                        
+                        selling_desc = gr.Textbox(
+                            label="其他補充說明 (選填)", 
+                            placeholder="可以補充商品保存狀況、購買原因、使用心得、商品特色、原價等...", 
+                            lines=3,
+                            info="任何額外的商品資訊或補充說明"
+                        )
+                        
                         selling_style = gr.Radio(
                             ["標準實用", "故事體驗", "簡約精要", "超值優惠"], 
                             label="文案風格", 
@@ -202,9 +241,36 @@ def create_app():
                         gr.Info(f"處理失敗：{result['error']}")
                     return gr.update(interactive=True, value="生成社群賣文") if result and ("success" in result or "error" in result) else gr.update()
                 
-                def process_selling_post_with_streaming(desc, image, price, contact_info, trade_method, style):
+                # 組合社群賣文表單資訊函數
+                def combine_selling_form_info(product_name, desc, usage_time, condition, brand):
+                    # 構建額外的描述資訊
+                    extra_info = []
+                    if product_name:
+                        extra_info.append(f"商品名稱：{product_name}")
+                    if usage_time > 0:
+                        extra_info.append(f"使用{usage_time}年")
+                    if condition:
+                        extra_info.append(f"狀態：{condition}")
+                    if brand:
+                        extra_info.append(f"品牌：{brand}")
+                    
+                    combined_desc = ""
+                    if extra_info:
+                        combined_desc = "商品資訊：" + "、".join(extra_info)
+                    
+                    if desc:
+                        if combined_desc:
+                            combined_desc += "\n\n其他補充：" + desc
+                        else:
+                            combined_desc = desc
+                    
+                    return combined_desc
+                
+                def process_selling_post_with_streaming(product_name, desc, image, price, contact_info, trade_method, usage_time, condition, brand, style):
                     """處理社群賣文並直接串流輸出到各個組件"""
-                    for result in process_selling_post(desc, image, price, contact_info, trade_method, style):
+                    # 組合表單資訊
+                    combined_desc = combine_selling_form_info(product_name, desc, usage_time, condition, brand)
+                    for result in process_selling_post(combined_desc, image, price, contact_info, trade_method, style):
                         if len(result) == 5:  # 正常回應：(json, image_analysis, carbon, carbon_chart, search)
                             result_json, image_analysis, carbon, carbon_chart, search = result
                             
@@ -225,7 +291,7 @@ def create_app():
                     outputs=[selling_submit]
                 ).then(
                     process_selling_post_with_streaming, 
-                    inputs=[selling_desc, selling_image, selling_price, selling_contact, selling_trade, selling_style],
+                    inputs=[selling_product_name, selling_desc, selling_image, selling_price, selling_contact, selling_trade, selling_usage_time, selling_condition, selling_brand, selling_style],
                     outputs=[selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content]
                 ).then(
                     finish_selling_processing,
@@ -239,18 +305,36 @@ def create_app():
                 with gr.Row():
                     # 左側輸入區域
                     with gr.Column(scale=1):
-                        seeking_desc = gr.Textbox(label="徵求商品描述", placeholder="請輸入想徵求的商品描述...", lines=3)
+                        seeking_image = gr.Image(label="上傳參考圖片 (選填)", type="filepath")
+                        
+                        # 徵求商品表單區域
+                        gr.Markdown("### 徵求資訊", elem_classes=["form-section"])
+                        
+                        seeking_product_name = gr.Textbox(
+                            label="商品名稱", 
+                            placeholder="例如：iPhone 14 Pro、MacBook Pro、Nike Air Jordan...",
+                            info="請輸入想徵求的商品名稱或型號"
+                        )
+                        
                         seeking_purpose = gr.Textbox(label="徵求目的", placeholder="請說明徵求目的...", lines=2)
                         seeking_price = gr.Textbox(label="期望價格", placeholder="例如：希望不超過 $5,000")
                         seeking_contact = gr.Textbox(label="聯絡方式", value="請私訊詳詢")
                         seeking_trade = gr.Textbox(label="交易方式", value="面交/郵寄皆可")
+                        
+                        seeking_deadline = gr.Textbox(label="徵求時效", value="越快越好")
                         seeking_type = gr.Radio(
                             ["購買", "租借"], 
                             label="徵求類型", 
                             value="購買"
                         )
-                        seeking_deadline = gr.Textbox(label="徵求時效", value="越快越好")
-                        seeking_image = gr.Image(label="上傳參考圖片 (選填)", type="filepath")
+                        
+                        seeking_desc = gr.Textbox(
+                            label="其他補充說明 (選填)", 
+                            placeholder="可以補充徵求的詳細需求、使用目的、希望的品牌或型號等...", 
+                            lines=3,
+                            info="任何額外的徵求需求或補充說明"
+                        )
+                        
                         seeking_style = gr.Radio(
                             ["標準親切", "急需緊急", "預算有限", "收藏愛好"], 
                             label="文案風格", 
@@ -280,9 +364,26 @@ def create_app():
                         gr.Info(f"處理失敗：{result['error']}")
                     return gr.update(interactive=True, value="生成徵求文案") if result and ("success" in result or "error" in result) else gr.update()
                 
-                def process_seeking_post_with_streaming(desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
+                # 組合社群徵文表單資訊函數
+                def combine_seeking_form_info(product_name, desc):
+                    # 構建描述資訊
+                    combined_desc = ""
+                    if product_name:
+                        combined_desc = f"徵求商品：{product_name}"
+                    
+                    if desc:
+                        if combined_desc:
+                            combined_desc += "\n\n其他補充說明：" + desc
+                        else:
+                            combined_desc = desc
+                    
+                    return combined_desc
+                
+                def process_seeking_post_with_streaming(product_name, desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
                     """處理社群徵文並直接串流輸出到各個組件"""
-                    for result in process_seeking_post(desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
+                    # 組合表單資訊
+                    combined_desc = combine_seeking_form_info(product_name, desc)
+                    for result in process_seeking_post(combined_desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
                         if len(result) == 2:  # 正常回應：(json, image_analysis)
                             result_json, image_analysis = result
                             
@@ -304,7 +405,7 @@ def create_app():
                 ).then(
                     process_seeking_post_with_streaming, 
                     inputs=[
-                        seeking_desc, seeking_purpose, seeking_price, seeking_contact, 
+                        seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, 
                         seeking_trade, seeking_type, seeking_deadline, seeking_image, seeking_style
                     ],
                     outputs=[seeking_result_json, seeking_image_analysis, seeking_content]
@@ -327,9 +428,10 @@ def create_app():
                 online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis, 
                 online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
                 online_condition, online_brand, online_carbon_chart,
-                selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
+                selling_image, selling_product_name, selling_desc, selling_price, selling_contact, selling_trade, 
+                selling_usage_time, selling_condition, selling_brand,
                 selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content,
-                seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
+                seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
                 seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
                 seeking_image_analysis, seeking_content
             ]

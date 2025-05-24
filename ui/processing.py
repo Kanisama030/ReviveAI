@@ -595,22 +595,24 @@ def reset_all():
     """
     # 按照 app.py 中 reset_btn.click 的 outputs 順序返回重置值
     return [
-        # online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis, 
+        # online 區塊: online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis, 
         # online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
-        # online_condition, online_brand, online_carbon_chart,
-        None, "", "", "標準專業", None, None,  # online 前6個 (product_name)
-        None, None, None, None, 2,  # online 後5個 (usage_time 預設為 2)
-        "八成新", "", None,  # online 表單元件 (condition, brand, carbon_chart) - 移除原價
+        # online_condition, online_brand, online_carbon_chart
+        None, "", "", "標準專業", None, None,  # online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis
+        None, None, None, None, 2,  # online_title, online_basic_info, online_carbon, online_search, online_usage_time
+        "八成新", "", None,  # online_condition, online_brand, online_carbon_chart
         
-        # selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
+        # selling 區塊: selling_image, selling_product_name, selling_desc, selling_price, selling_contact, selling_trade, 
+        # selling_usage_time, selling_condition, selling_brand,
         # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content
-        None, "", "", "請私訊詳詢", "面交/郵寄皆可",  # selling 前5個
-        "標準實用", None, None, None, None, None, "",  # selling 後7個 (包含 carbon_chart, selling_search, selling_content)
+        None, "", "", "", "請私訊詳詢", "面交/郵寄皆可",  # selling_image, selling_product_name, selling_desc, selling_price, selling_contact, selling_trade
+        2, "八成新", "",  # selling_usage_time, selling_condition, selling_brand
+        "標準實用", None, None, None, None, None, "",  # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content
         
-        # seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
+        # seeking 區塊: seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
         # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
         # seeking_image_analysis, seeking_content
-        "", "", "", "請私訊詳詢", "面交/郵寄皆可",  # seeking 前5個
-        "購買", "越快越好", None, "標準親切", None,  # seeking 中5個
+        "", "", "", "", "請私訊詳詢", "面交/郵寄皆可",  # seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade
+        "購買", "越快越好", None, "標準親切", None,  # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json
         None, ""  # seeking_image_analysis, seeking_content
     ]
