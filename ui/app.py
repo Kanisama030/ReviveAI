@@ -71,10 +71,9 @@ def create_app():
                         )
                         
                         online_style = gr.Radio(
-                            ["normal", "casual", "formal", "story"], 
+                            ["標準專業", "輕鬆活潑", "正式商務", "故事體驗"], 
                             label="文案風格", 
-                            value="normal", 
-                            info="normal=標準專業, casual=輕鬆活潑, formal=正式商務, story=故事體驗"
+                            value="標準專業"
                         )
                         online_submit = gr.Button("生成拍賣文案", variant="primary", elem_classes=["submit-btn"])
                     
@@ -166,10 +165,9 @@ def create_app():
                         selling_contact = gr.Textbox(label="聯絡方式", value="請私訊詳詢")
                         selling_trade = gr.Textbox(label="交易方式", value="面交/郵寄皆可")
                         selling_style = gr.Radio(
-                            ["normal", "storytelling", "minimalist", "bargain"], 
+                            ["標準實用", "故事體驗", "簡約精要", "超值優惠"], 
                             label="文案風格", 
-                            value="normal", 
-                            info="normal=標準實用, storytelling=故事體驗, minimalist=簡約精要, bargain=超值優惠"
+                            value="標準實用"
                         )
                         selling_submit = gr.Button("生成社群賣文", variant="primary", elem_classes=["submit-btn"])
                     
@@ -247,18 +245,16 @@ def create_app():
                         seeking_contact = gr.Textbox(label="聯絡方式", value="請私訊詳詢")
                         seeking_trade = gr.Textbox(label="交易方式", value="面交/郵寄皆可")
                         seeking_type = gr.Radio(
-                            ["buy", "rent"], 
+                            ["購買", "租借"], 
                             label="徵求類型", 
-                            value="buy", 
-                            info="buy=購買, rent=租借"
+                            value="購買"
                         )
                         seeking_deadline = gr.Textbox(label="徵求時效", value="越快越好")
                         seeking_image = gr.Image(label="上傳參考圖片 (選填)", type="filepath")
                         seeking_style = gr.Radio(
-                            ["normal", "urgent", "budget", "collector"], 
+                            ["標準親切", "急需緊急", "預算有限", "收藏愛好"], 
                             label="文案風格", 
-                            value="normal", 
-                            info="normal=標準親切, urgent=急需緊急, budget=預算有限, collector=收藏愛好"
+                            value="標準親切"
                         )
                         seeking_submit = gr.Button("生成徵求文案", variant="primary", elem_classes=["submit-btn"])
                     

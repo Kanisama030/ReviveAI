@@ -13,6 +13,46 @@ from plotly.subplots import make_subplots
 # 設定 API 基礎 URL
 API_BASE_URL = "http://localhost:8000"  # 請根據您的實際設置修改
 
+# ================================= 中文轉英文映射 =================================
+def convert_chinese_to_english(value, mapping_type):
+    """
+    將中文選項轉換為對應的英文代碼
+    
+    Args:
+        value: 中文選項值
+        mapping_type: 映射類型 ('online_style', 'selling_style', 'seeking_style', 'seeking_type')
+    
+    Returns:
+        對應的英文代碼
+    """
+    mappings = {
+        'online_style': {
+            '標準專業': 'normal',
+            '輕鬆活潑': 'casual', 
+            '正式商務': 'formal',
+            '故事體驗': 'story'
+        },
+        'selling_style': {
+            '標準實用': 'normal',
+            '故事體驗': 'storytelling',
+            '簡約精要': 'minimalist',
+            '超值優惠': 'bargain'
+        },
+        'seeking_style': {
+            '標準親切': 'normal',
+            '急需緊急': 'urgent',
+            '預算有限': 'budget',
+            '收藏愛好': 'collector'
+        },
+        'seeking_type': {
+            '購買': 'buy',
+            '租借': 'rent'
+        }
+    }
+    
+    mapping = mappings.get(mapping_type, {})
+    return mapping.get(value, value)  # 如果找不到映射，返回原值
+
 # ================================= 拍賣網站功能 =================================
 def process_online_sale(description, image, style):
     """
@@ -32,11 +72,14 @@ def process_online_sale(description, image, style):
         return
     
     try:
+        # 轉換中文風格選項為英文代碼
+        english_style = convert_chinese_to_english(style, 'online_style')
+        
         # 準備檔案和表單資料
         files = {'image': (os.path.basename(image), open(image, 'rb'), 'image/jpeg')}
         data = {
             'description': description or "",
-            'style': style
+            'style': english_style
         }
         
         # 創建串流請求
@@ -143,6 +186,9 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
         return
     
     try:
+        # 轉換中文風格選項為英文代碼
+        english_style = convert_chinese_to_english(style, 'selling_style')
+        
         # 準備檔案和表單資料
         files = {'image': (os.path.basename(image), open(image, 'rb'), 'image/jpeg')}
         data = {
@@ -150,7 +196,7 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
             'price': price,
             'contact_info': contact_info,
             'trade_method': trade_method,
-            'style': style,
+            'style': english_style,
             'stream': True  # 使用串流模式
         }
         
@@ -243,6 +289,10 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
     2. seeking_image_analysis: 圖片分析結果
     """
     try:
+        # 轉換中文選項為英文代碼
+        english_seeking_type = convert_chinese_to_english(seeking_type, 'seeking_type')
+        english_style = convert_chinese_to_english(style, 'seeking_style')
+        
         # 準備表單資料
         data = {
             'product_description': product_description,
@@ -250,9 +300,9 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
             'expected_price': expected_price,
             'contact_info': contact_info,
             'trade_method': trade_method,
-            'seeking_type': seeking_type,
+            'seeking_type': english_seeking_type,
             'deadline': deadline,
-            'style': style,
+            'style': english_style,
             'stream': True  # 使用串流模式
         }
         
@@ -548,19 +598,19 @@ def reset_all():
         # online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis, 
         # online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
         # online_condition, online_brand, online_carbon_chart,
-        None, "", "", "normal", None, None,  # online 前6個 (product_name)
+        None, "", "", "標準專業", None, None,  # online 前6個 (product_name)
         None, None, None, None, 2,  # online 後5個 (usage_time 預設為 2)
         "八成新", "", None,  # online 表單元件 (condition, brand, carbon_chart) - 移除原價
         
         # selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
         # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content
         None, "", "", "請私訊詳詢", "面交/郵寄皆可",  # selling 前5個
-        "normal", None, None, None, None, None, "",  # selling 後7個 (包含 carbon_chart, selling_search, selling_content)
+        "標準實用", None, None, None, None, None, "",  # selling 後7個 (包含 carbon_chart, selling_search, selling_content)
         
         # seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
         # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
         # seeking_image_analysis, seeking_content
         "", "", "", "請私訊詳詢", "面交/郵寄皆可",  # seeking 前5個
-        "buy", "越快越好", None, "normal", None,  # seeking 中5個
+        "購買", "越快越好", None, "標準親切", None,  # seeking 中5個
         None, ""  # seeking_image_analysis, seeking_content
     ]
