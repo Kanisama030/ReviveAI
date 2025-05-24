@@ -545,12 +545,12 @@ def reset_all():
     """
     # 按照 app.py 中 reset_btn.click 的 outputs 順序返回重置值
     return [
-        # online_image, online_desc, online_style, online_result_json, online_image_analysis, 
+        # online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis, 
         # online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
-        # online_condition, online_brand, online_original_price, online_carbon_chart,
-        None, "", "normal", None, None,  # online 前5個
+        # online_condition, online_brand, online_carbon_chart,
+        None, "", "", "normal", None, None,  # online 前6個 (product_name)
         None, None, None, None, 2,  # online 後5個 (usage_time 預設為 2)
-        "八成新", "", "", None,  # online 表單元件 (condition, brand, original_price, carbon_chart)
+        "八成新", "", None,  # online 表單元件 (condition, brand, carbon_chart) - 移除原價
         
         # selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
         # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content

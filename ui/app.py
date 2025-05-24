@@ -35,6 +35,12 @@ def create_app():
                         # 二手商品表單區域
                         gr.Markdown("### 商品資訊", elem_classes=["form-section"])
                         
+                        online_product_name = gr.Textbox(
+                            label="商品名稱", 
+                            placeholder="例如：iPhone 14 Pro、MacBook Pro、Nike Air Jordan...",
+                            info="請輸入商品的名稱或型號"
+                        )
+                        
                         online_usage_time = gr.Slider(
                             minimum=0, 
                             maximum=20, 
@@ -57,15 +63,9 @@ def create_app():
                             info="商品的品牌名稱"
                         )
                         
-                        online_original_price = gr.Textbox(
-                            label="原價 (選填)", 
-                            placeholder="例如：NT$ 25,000",
-                            info="商品的原始購買價格"
-                        )
-                        
                         online_desc = gr.Textbox(
                             label="其他補充說明 (選填)", 
-                            placeholder="可以補充購買原因、使用心得、商品特色等...", 
+                            placeholder="可以補充商品保存狀況、購買原因、使用心得、商品特色、原價等...", 
                             lines=3,
                             info="任何額外的商品資訊或補充說明"
                         )
@@ -99,17 +99,17 @@ def create_app():
                                 online_search = gr.Markdown(label="網路搜尋結果")
                 
                 # 組合表單資訊函數
-                def combine_form_info(desc, usage_time, condition, brand, original_price):
+                def combine_form_info(product_name, desc, usage_time, condition, brand):
                     # 構建額外的描述資訊
                     extra_info = []
+                    if product_name:
+                        extra_info.append(f"商品名稱：{product_name}")
                     if usage_time > 0:
                         extra_info.append(f"使用{usage_time}年")
                     if condition:
                         extra_info.append(f"狀態：{condition}")
                     if brand:
                         extra_info.append(f"品牌：{brand}")
-                    if original_price:
-                        extra_info.append(f"原價：{original_price}")
                     
                     combined_desc = ""
                     if extra_info:
@@ -135,9 +135,9 @@ def create_app():
                         gr.Info(f"處理失敗：{result['error']}")
                     return gr.update(interactive=True, value="生成拍賣文案") if result and ("success" in result or "error" in result) else gr.update()
                 
-                def process_online_sale_with_form(desc, image, style, usage_time, condition, brand, original_price):
+                def process_online_sale_with_form(product_name, desc, image, style, usage_time, condition, brand):
                     # 組合表單資訊
-                    combined_desc = combine_form_info(desc, usage_time, condition, brand, original_price)
+                    combined_desc = combine_form_info(product_name, desc, usage_time, condition, brand)
                     # 調用原有的處理函數並正確處理 generator
                     yield from process_online_sale(combined_desc, image, style)
                 
@@ -147,7 +147,7 @@ def create_app():
                     outputs=[online_submit]
                 ).then(
                     process_online_sale_with_form, 
-                    inputs=[online_desc, online_image, online_style, online_usage_time, online_condition, online_brand, online_original_price],
+                    inputs=[online_product_name, online_desc, online_image, online_style, online_usage_time, online_condition, online_brand],
                     outputs=[online_result_json, online_image_analysis, online_title, online_basic_info, online_carbon, online_search, online_carbon_chart]
                 ).then(
                     finish_online_processing,
@@ -328,9 +328,9 @@ def create_app():
             reset_with_notification,
             inputs=[],
             outputs=[
-                online_image, online_desc, online_style, online_result_json, online_image_analysis, 
+                online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis, 
                 online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
-                online_condition, online_brand, online_original_price, online_carbon_chart,
+                online_condition, online_brand, online_carbon_chart,
                 selling_image, selling_desc, selling_price, selling_contact, selling_trade, 
                 selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content,
                 seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
