@@ -97,6 +97,34 @@ def create_app():
                             with gr.Tab("網路搜尋結果"):
                                 online_search = gr.Markdown(label="網路搜尋結果")
                 
+                # 範例功能
+                gr.Markdown("### 📝 快速範例")
+                online_examples = gr.Examples(
+                    examples=[
+                        [
+                            "pics/test1.jpg",  # 圖片路徑
+                            "MacBook Air M1 2020",  # 商品名稱
+                            2.0,  # 使用時間
+                            "八成新",  # 商品狀態
+                            "Apple",  # 品牌
+                            "256GB 儲存空間，8GB 記憶體，玫瑰金色。平時主要用於文書處理和上網，保存良好，但背後有輕微使用痕跡。原價約32,000元，現在想換新機所以出售。",  # 補充說明
+                            "輕鬆活潑"  # 文案風格
+                        ]
+                    ],
+                    inputs=[
+                        online_image, 
+                        online_product_name, 
+                        online_usage_time, 
+                        online_condition, 
+                        online_brand, 
+                        online_desc, 
+                        online_style
+                    ],
+                    examples_per_page=1,
+                    label="點擊範例快速填入表單",
+                    cache_examples=False
+                )
+                
                 # 組合表單資訊函數
                 def combine_form_info(product_name, desc, usage_time, condition, brand):
                     # 構建額外的描述資訊
@@ -229,6 +257,40 @@ def create_app():
                             with gr.Tab("網路搜尋結果"):
                                 selling_search = gr.Markdown(label="網路搜尋結果")
                 
+                # 範例功能
+                gr.Markdown("### 📝 快速範例")
+                selling_examples = gr.Examples(
+                    examples=[
+                        [
+                            "pics/test1.jpg",  # 圖片
+                            "MacBook Air M1 2020",  # 商品名稱
+                            3.0,  # 使用時間
+                            "八成新",  # 商品狀態
+                            "Apple",  # 品牌
+                            "$10,000",  # 商品售價
+                            "請私訊詳詢",  # 聯絡方式
+                            "面交/郵寄/交貨便",  # 交易方式
+                            "256GB 儲存空間，8GB 記憶體，玫瑰金色。平時主要用於文書處理，保存良好但背後有小瑕疵。誠心出售，可議價。",  # 補充說明
+                            "超值優惠"  # 文案風格
+                        ]
+                    ],
+                    inputs=[
+                        selling_image,
+                        selling_product_name,
+                        selling_usage_time,
+                        selling_condition,
+                        selling_brand,
+                        selling_price,
+                        selling_contact,
+                        selling_trade,
+                        selling_desc,
+                        selling_style
+                    ],
+                    examples_per_page=1,
+                    label="點擊範例快速填入表單",
+                    cache_examples=False
+                )
+                
                 # 連接按鈕事件 - 使用串流模式，參考拍賣網站的實現
                 def start_selling_processing():
                     gr.Info("開始處理社群賣文，請稍候...")
@@ -351,6 +413,40 @@ def create_app():
                                 
                             with gr.Tab("圖片分析"):
                                 seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")
+                
+                # 範例功能
+                gr.Markdown("### 📝 快速範例")
+                seeking_examples = gr.Examples(
+                    examples=[
+                        [
+                            "MacBook Air M1",  # 商品名稱
+                            "學習程式設計",  # 徵求目的
+                            "希望不超過 $7,000",  # 期望價格
+                            "Line: 0900000000",  # 聯絡方式
+                            "台北面交佳",  # 交易方式
+                            "兩週內",  # 徵求時效
+                            "購買",  # 徵求類型
+                            "pics/test1.jpg",  # 參考圖片
+                            "剛開始學程式設計，需要一台輕薄的筆電。希望找到狀況良好的 MacBook Air M1，256GB 以上佳。預算有限，但會好好愛惜！",  # 補充說明
+                            "預算有限"  # 文案風格
+                        ]
+                    ],
+                    inputs=[
+                        seeking_product_name,
+                        seeking_purpose,
+                        seeking_price,
+                        seeking_contact,
+                        seeking_trade,
+                        seeking_deadline,
+                        seeking_type,
+                        seeking_image,
+                        seeking_desc,
+                        seeking_style
+                    ],
+                    examples_per_page=1,
+                    label="點擊範例快速填入表單",
+                    cache_examples=False
+                )
                 
                 # 連接按鈕事件 - 使用串流模式，參考拍賣網站和社群賣文的實現
                 def start_seeking_processing():
