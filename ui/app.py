@@ -16,9 +16,26 @@ from processing import (
 def create_app():
     # 初始化應用程式
     with gr.Blocks(css=css, theme=gr.themes.Base()) as app:
-        # 添加頁面標題
-        gr.Markdown("# ReviveAI - 二手商品優化系統", elem_classes=["page-title"])
-        
+        # 添加頁面標題與logo
+        with gr.Row(elem_classes=["header-row"]):
+            # Logo 圖片
+            gr.Image(
+                value="/Users/chenyirui/Project/ReviveAI/pics/small_logo.png",
+                show_label=False,
+                container=False,
+                height=100,
+                width=100,
+                interactive=False,
+                show_fullscreen_button=False,
+                show_download_button=False,
+                elem_classes=["logo-image"]
+            )
+            # 標題文字區域
+            with gr.Column():
+                gr.Markdown("# ReviveAI - 二手商品文案優化助手", elem_classes=["page-title"])
+                gr.Markdown("### AI 驅動的智能文案助手，讓每件二手商品都有最佳故事！", elem_classes=["sub-title"])
+                
+
         with gr.Row():
             # 右上角的重置按鈕
             reset_btn = gr.Button("重置所有輸入", variant="stop", elem_classes=["reset-btn"])
