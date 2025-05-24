@@ -43,7 +43,7 @@ def create_app():
                         
                         online_usage_time = gr.Slider(
                             minimum=0, 
-                            maximum=20, 
+                            maximum=10, 
                             value=2, 
                             step=0.5,
                             label="使用時間 (年)",
@@ -172,7 +172,7 @@ def create_app():
                         
                         selling_usage_time = gr.Slider(
                             minimum=0, 
-                            maximum=20, 
+                            maximum=10, 
                             value=2, 
                             step=0.5,
                             label="使用時間 (年)",
