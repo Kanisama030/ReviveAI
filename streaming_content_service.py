@@ -69,10 +69,7 @@ async def generate_streaming_product_content(product_description: str, style: st
     
     # 商品現況詳細說明
     [描述商品現況和使用痕跡]
-    
-    # 永續價值
-    [說明購買二手商品的永續價值和環保意義]
-    
+        
     # 呼籲行動
     [總結購買優勢，加入SEO關鍵字]
     """
@@ -131,11 +128,6 @@ async def generate_streaming_product_content(product_description: str, style: st
     - 描述商品現況、保存狀況
     - 只需描述重點，不要太冗長
     - 若是科技產品，應較仔細寫功能、性能的保存狀態
-
-    "# 永續價值"：
-    - 具體連結至相關 1~3 個 SDGs 目標並條列，如 SDGs 12
-    - 說明選購二手商品對環境的正面影響
-    - 連結消費者的環保意識
         
     "# 呼籲行動"：
     - 說服買家總結購買的優勢，呼籲行動

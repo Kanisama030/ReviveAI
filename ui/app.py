@@ -101,7 +101,7 @@ def create_app():
                             with gr.Tab("文案輸出"):
                                 online_result_json = gr.JSON(visible=False)  # 儲存完整結果
                                 online_title = gr.Textbox(label="優化商品標題", lines=2, interactive=False, show_copy_button=True)
-                                online_basic_info = gr.Textbox(label="商品詳細內容", lines=45, interactive=False, show_copy_button=True)
+                                online_basic_info = gr.Textbox(label="商品詳細內容", lines=48, interactive=False, show_copy_button=True)
                                 
                             with gr.Tab("碳足跡圖表"):
                                 online_carbon_chart = gr.Plot(label="環保效益視覺化")

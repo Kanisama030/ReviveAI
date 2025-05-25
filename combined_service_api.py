@@ -33,6 +33,57 @@ class ApiResponse(BaseModel):
     data: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
 
+def format_carbon_footprint_for_content(carbon_results):
+    """
+    將碳足跡數據格式化為適合融入文案的內容
+    """
+    if not carbon_results:
+        return ""
+    
+    selected_product = carbon_results.get("selected_product", {})
+    saved_carbon = carbon_results.get("saved_carbon", 0)
+    benefits = carbon_results.get("environmental_benefits", {})
+    
+    if saved_carbon <= 0:
+        return ""
+    
+    content = f"""
+
+## 🌱 環保效益
+
+選擇這件二手商品，你為地球做了一件好事！
+
+📊 **減少碳排放：{saved_carbon:.1f} kg CO2e**
+
+🌍 **具體環保貢獻：**
+🌳 相當於 {benefits.get('trees', '0')} 棵樹一年的吸碳量
+🚗 相當於減少開車 {benefits.get('car_km', '0')} 公里的碳排放  
+❄️ 相當於減少吹冷氣 {benefits.get('ac_hours', '0')} 小時的用電量
+📱 相當於減少手機充電 {benefits.get('phone_charges', '0')} 次的用電量
+
+💚 **永續意義：** 每一次選擇二手商品，都是對循環經濟的支持，讓好物延續生命週期，減少製造新品對環境的負擔！"""
+    
+    return content
+
+def format_carbon_footprint_for_social_content(carbon_results):
+    """
+    將碳足跡數據格式化為適合社群平台的簡潔內容
+    """
+    if not carbon_results:
+        return ""
+    
+    saved_carbon = carbon_results.get("saved_carbon", 0)
+    benefits = carbon_results.get("environmental_benefits", {})
+    
+    if saved_carbon <= 0:
+        return ""
+    
+    content = f"""
+
+🌱 選擇二手，愛護地球！買這個商品，減少 {saved_carbon:.1f} kg 碳排放，相當於減少開車 🚗 {benefits.get('car_km', '0')} 公里的碳排放"""
+
+    return content
+
 # 驗證並保存上傳的圖片到臨時文件
 async def save_and_validate_image(image: UploadFile):
     if not image:
@@ -187,6 +238,15 @@ async def combined_online_sale_stream_endpoint(
                 }
                 yield json.dumps(chunk_data) + "\n"
             
+            # 文案串流完成後，追加碳足跡內容到文案中
+            carbon_content = format_carbon_footprint_for_content(carbon_results)
+            if carbon_content:
+                chunk_data = {
+                    "type": "content",
+                    "chunk": carbon_content
+                }
+                yield json.dumps(chunk_data) + "\n"
+            
             # 結束標記
             yield json.dumps({"type": "end"}) + "\n"
         
@@ -306,6 +366,15 @@ async def combined_selling_post_endpoint(
                     chunk_data = {
                         "type": "content",
                         "chunk": content
+                    }
+                    yield json.dumps(chunk_data) + "\n"
+                
+                # 文案串流完成後，追加碳足跡內容到文案中
+                carbon_content = format_carbon_footprint_for_social_content(carbon_results)
+                if carbon_content:
+                    chunk_data = {
+                        "type": "content",
+                        "chunk": carbon_content
                     }
                     yield json.dumps(chunk_data) + "\n"
                 
