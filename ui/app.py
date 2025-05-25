@@ -9,7 +9,8 @@ from processing import (
     process_online_sale, 
     process_selling_post, 
     process_seeking_post, 
-    reset_all
+    reset_all,
+    convert_markdown_to_plain_text
 )
 
 # ================================= 主應用程式 =================================
@@ -346,16 +347,18 @@ def create_app():
                     return combined_desc
                 
                 def process_selling_post_with_streaming(product_name, desc, image, price, contact_info, trade_method, usage_time, condition, brand, style):
-                    """處理社群賣文並直接串流輸出到各個組件"""
+                    """處理社群賣文並直接串流輸出到各個組件，轉換為純文字格式"""
                     # 組合表單資訊
                     combined_desc = combine_selling_form_info(product_name, desc, usage_time, condition, brand)
                     for result in process_selling_post(combined_desc, image, price, contact_info, trade_method, style):
                         if len(result) == 5:  # 正常回應：(json, image_analysis, carbon, carbon_chart, search)
                             result_json, image_analysis, carbon, carbon_chart, search = result
                             
-                            # 從 result_json 中提取文案內容
+                            # 從 result_json 中提取文案內容並轉換為純文字格式
                             if result_json and "success" in result_json and result_json["success"]:
                                 content = result_json.get("full_content", "")
+                                # 轉換 markdown 為純文字格式
+                                content = convert_markdown_to_plain_text(content)
                             else:
                                 content = ""
                             
@@ -493,16 +496,18 @@ def create_app():
                     return combined_desc
                 
                 def process_seeking_post_with_streaming(product_name, desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
-                    """處理社群徵文並直接串流輸出到各個組件"""
+                    """處理社群徵文並直接串流輸出到各個組件，轉換為純文字格式"""
                     # 組合表單資訊
                     combined_desc = combine_seeking_form_info(product_name, desc)
                     for result in process_seeking_post(combined_desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
                         if len(result) == 2:  # 正常回應：(json, image_analysis)
                             result_json, image_analysis = result
                             
-                            # 從 result_json 中提取文案內容
+                            # 從 result_json 中提取文案內容並轉換為純文字格式
                             if result_json and "success" in result_json and result_json["success"]:
                                 content = result_json.get("full_content", "")
+                                # 轉換 markdown 為純文字格式
+                                content = convert_markdown_to_plain_text(content)
                             else:
                                 content = ""
                             

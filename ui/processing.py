@@ -6,6 +6,7 @@ ReviveAI 應用程式的業務邏輯處理模組
 import requests
 import json
 import os
+import re
 from charts import create_environmental_gauges
 
 # 設定 API 基礎 URL
@@ -128,10 +129,10 @@ def process_online_sale(description, image, style):
                     if not streaming_started:
                         streaming_started = True
                     
-                    # 處理目前已有的內容
+                    # 處理目前已有的內容，使用純文字格式
                     current_sections = split_content_sections(content_chunks)
-                    current_title = current_sections["title"]
-                    current_content = current_sections["basic_info"]
+                    current_title = current_sections["title_plain"]  # 使用純文字標題
+                    current_content = current_sections["basic_info_plain"]  # 使用純文字內容
                     
                     # 即時返回更新的內容
                     yield {
@@ -146,16 +147,16 @@ def process_online_sale(description, image, style):
                     carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
                     carbon_chart = create_carbon_chart(carbon_footprint) if carbon_footprint else None
                     
-                    # 將文案內容分拆為不同部分
+                    # 將文案內容分拆為不同部分，使用純文字格式
                     content_sections = split_content_sections(content_chunks)
                     
-                    # 最終更新
+                    # 最終更新，使用純文字格式
                     yield {
                         "success": True,
                         "full_content": content_chunks,
                         "streaming_started": True,
                         "completed": True
-                    }, image_analysis, content_sections["title"], content_sections["basic_info"], carbon_text, search_results, carbon_chart
+                    }, image_analysis, content_sections["title_plain"], content_sections["basic_info_plain"], carbon_text, search_results, carbon_chart
                     break
                 
                 # 處理錯誤
@@ -378,13 +379,153 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
         yield {"error": f"發生錯誤: {str(e)}"}, None
 
 # ================================= 輔助函數 =================================
+def convert_markdown_to_plain_text(content):
+    """
+    將 markdown 格式轉換為適合拍賣平台的純文字格式
+    
+    Args:
+        content (str): 包含 markdown 格式的文案內容
+        
+    Returns:
+        str: 轉換後的純文字格式
+    """
+    if not content:
+        return ""
+    
+    # 先處理粗體格式 **文字** -> 移除星號
+    content = re.sub(r'\*\*(.*?)\*\*', r'\1', content)
+    
+    lines = content.split('\n')
+    converted_lines = []
+    
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # 跳過空行
+        if not line:
+            i += 1
+            continue
+            
+        # 處理一級標題 (# 標題)
+        if line.startswith('# '):
+            title = line[2:].strip()
+            # 跳過 "優化商品標題" 這個標題，因為會單獨顯示
+            if title == "優化商品標題":
+                i += 1
+                continue
+            
+            # 如果前面有內容，加空行分隔
+            if converted_lines and converted_lines[-1] != "":
+                converted_lines.append("")
+            
+            converted_lines.append(f"◆ {title}")
+            
+            # 檢查下一行是否有內容，如果有則添加空行
+            if i + 1 < len(lines) and lines[i + 1].strip():
+                converted_lines.append("")
+            
+        # 處理二級標題 (## 標題)
+        elif line.startswith('## '):
+            title = line[3:].strip()
+            
+            # 如果前面有內容，加空行分隔
+            if converted_lines and converted_lines[-1] != "":
+                converted_lines.append("")
+            
+            converted_lines.append(f"▶ {title}")
+            
+            # 檢查下一行是否有內容，如果有則添加空行
+            if i + 1 < len(lines) and lines[i + 1].strip():
+                converted_lines.append("")
+            
+        # 處理三級標題 (### 標題)
+        elif line.startswith('### '):
+            title = line[4:].strip()
+            
+            # 如果前面有內容，加空行分隔
+            if converted_lines and converted_lines[-1] != "":
+                converted_lines.append("")
+            
+            converted_lines.append(f"• {title}")
+            
+            # 檢查下一行是否有內容，如果有則添加空行
+            if i + 1 < len(lines) and lines[i + 1].strip():
+                converted_lines.append("")
+            
+        # 處理列表項目 (- 或 • 開頭)
+        elif line.startswith('- ') or line.startswith('• '):
+            item = line[2:].strip()
+            converted_lines.append(f"• {item}")
+            
+            # 檢查後面是否有標題或其他非列表內容，如果有則加空行
+            next_line_index = i + 1
+            while next_line_index < len(lines) and not lines[next_line_index].strip():
+                next_line_index += 1
+            
+            if (next_line_index < len(lines) and 
+                lines[next_line_index].strip() and
+                not lines[next_line_index].strip().startswith(('- ', '• ')) and
+                not lines[next_line_index].strip()[0].isdigit()):
+                # 如果下個非空行不是列表項目且不是數字列表，則加空行
+                converted_lines.append("")
+            
+        # 處理數字列表 (1. 2. 等)
+        elif line and line[0].isdigit() and '. ' in line:
+            converted_lines.append(line)
+            
+            # 檢查後面是否有標題或其他非列表內容，如果有則加空行
+            next_line_index = i + 1
+            while next_line_index < len(lines) and not lines[next_line_index].strip():
+                next_line_index += 1
+            
+            if (next_line_index < len(lines) and 
+                lines[next_line_index].strip() and
+                not lines[next_line_index].strip()[0].isdigit() and
+                not lines[next_line_index].strip().startswith(('- ', '• '))):
+                # 如果下個非空行不是數字列表且不是項目列表，則加空行
+                converted_lines.append("")
+            
+        # 處理 hashtag (以 # 結尾的行)
+        elif line.startswith('#') and not line.startswith('# '):
+            converted_lines.append(line)
+            
+        # 處理普通文字行
+        else:
+            converted_lines.append(line)
+        
+        i += 1
+    
+    # 清理多餘的連續空行，最多保留一個空行
+    final_lines = []
+    prev_was_empty = False
+    
+    for line in converted_lines:
+        if line == "":
+            if not prev_was_empty:
+                final_lines.append(line)
+                prev_was_empty = True
+        else:
+            final_lines.append(line)
+            prev_was_empty = False
+    
+    # 移除開頭和結尾的空行
+    while final_lines and final_lines[0] == "":
+        final_lines.pop(0)
+    while final_lines and final_lines[-1] == "":
+        final_lines.pop()
+    
+    return '\n'.join(final_lines)
+
 def split_content_sections(content):
     """
-    將文案內容分拆為不同部分，去掉basic_info中重複的標題部分
+    將文案內容分拆為不同部分，返回 markdown 和純文字兩種格式
     """
     sections = {
         "title": "",
-        "basic_info": ""
+        "basic_info": "",
+        "title_plain": "",
+        "basic_info_plain": ""
     }
     
     # 找出標題部分（第一個#後面的內容）
@@ -401,15 +542,20 @@ def split_content_sections(content):
                     title_section_end = j
                     break
                 sections["title"] = lines[j].strip()
+                sections["title_plain"] = lines[j].strip()  # 標題本身不需要特殊轉換
                 title_section_end = j + 1
                 break
             break
     
     # 組合排除了標題部分的商品詳細內容
+    basic_info_markdown = ""
     if title_section_end > 0:
-        sections["basic_info"] = '\n'.join(lines[title_section_end:])
+        basic_info_markdown = '\n'.join(lines[title_section_end:])
     else:
-        sections["basic_info"] = content
+        basic_info_markdown = content
+    
+    sections["basic_info"] = basic_info_markdown
+    sections["basic_info_plain"] = convert_markdown_to_plain_text(basic_info_markdown)
     
     return sections
 
