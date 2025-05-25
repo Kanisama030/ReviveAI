@@ -20,7 +20,7 @@ def create_app():
         with gr.Row(elem_classes=["header-row"]):
             # Logo 圖片
             gr.Image(
-                value="/Users/chenyirui/Project/ReviveAI/pics/small_logo.png",
+                value="pics/small_logo.png",
                 show_label=False,
                 container=False,
                 height=100,

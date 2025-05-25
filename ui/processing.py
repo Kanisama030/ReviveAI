@@ -440,7 +440,7 @@ def create_carbon_chart(carbon_data):
 
 def format_carbon_footprint(carbon_data):
     """
-    格式化碳足跡數據為易讀文本
+    格式化碳足跡數據為易讀文本，包含搜尋參數和候選產品列表
     """
     if not carbon_data:
         return "無法計算碳足跡"
@@ -448,9 +448,11 @@ def format_carbon_footprint(carbon_data):
     selected_product = carbon_data.get("selected_product", {})
     saved_carbon = carbon_data.get("saved_carbon", 0)
     benefits = carbon_data.get("environmental_benefits", {})
+    search_params = carbon_data.get("search_params", {})
+    candidates = carbon_data.get("candidates", [])
     
     text = f"## 碳足跡分析\n\n"
-    text += f"- **選定商品**: {selected_product.get('product_name', '未知')}\n"
+    text += f"- **gpt rerank 選定商品**: {selected_product.get('product_name', '未知')}\n"
     text += f"- **公司**: {selected_product.get('company', '未知')}\n"
     text += f"- **原始碳足跡**: {selected_product.get('carbon_footprint', 0):.2f} kg CO2e\n"
     text += f"- **節省的碳排放**: {saved_carbon:.2f} kg CO2e\n\n"
@@ -459,7 +461,29 @@ def format_carbon_footprint(carbon_data):
     text += f"- 相當於 {benefits.get('trees', '0')} 棵樹一年的吸碳量\n"
     text += f"- 相當於減少開車 {benefits.get('car_km', '0')} 公里的碳排放\n"
     text += f"- 相當於減少吹冷氣 {benefits.get('ac_hours', '0')} 小時的碳排放\n"
-    text += f"- 相當於減少手機充電 {benefits.get('phone_charges', '0')} 次的碳排放\n"
+    text += f"- 相當於減少手機充電 {benefits.get('phone_charges', '0')} 次的碳排放\n\n"
+    
+    # 新增搜尋參數部分
+    if search_params:
+        text += "## 智慧 Function calling 搜尋參數\n\n"
+        text += f"- **搜尋關鍵字**: {search_params.get('query_text', '未知')}\n"
+        if search_params.get('min_carbon_footprint') is not None:
+            text += f"- **最小碳足跡**: {search_params.get('min_carbon_footprint')} kg CO2e\n"
+        if search_params.get('max_carbon_footprint') is not None:
+            text += f"- **最大碳足跡**: {search_params.get('max_carbon_footprint')} kg CO2e\n"
+        if search_params.get('sector'):
+            text += f"- **產業分類**: {search_params.get('sector')}\n"
+        text += "\n"
+    
+    # 新增候選產品列表部分
+    if candidates:
+        text += f"## 候選產品列表 ({len(candidates)} 個)\n\n"
+        for i, candidate in enumerate(candidates, 1):
+            text += f"**{i}. {candidate.get('product_name', '未知')}**\n"
+            text += f"   - 公司: {candidate.get('company', '未知')}\n"
+            text += f"   - 碳足跡: {candidate.get('carbon_footprint', 0)} kg CO2e\n"
+            text += f"   - 產業類別: {candidate.get('sector', '未知')}\n"
+            text += f"   - 相似度分數: {candidate.get('similarity_score', 0):.4f}\n\n"
     
     return text
 

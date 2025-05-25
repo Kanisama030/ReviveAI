@@ -43,12 +43,25 @@ async def calculate_carbon_footprint_async(product_description: str) -> dict:
                 "details": "無詳細資訊",
                 "selection_reason": "未找到匹配產品"
             },
+            "candidates": [],  # 錯誤情況下回傳空的候選列表
             "saved_carbon": 0,
             "environmental_benefits": default_benefits
         }
 
     # 直接從搜尋結果中獲取最佳匹配產品
     best_product = search_results["best_product"]
+
+    # 提取所有候選產品
+    candidates = []
+    if "raw_results" in search_results:
+        for i, metadata in enumerate(search_results["raw_results"]["metadatas"][0]):
+            candidates.append({
+                "product_name": metadata["product_name"],
+                "company": metadata["company"], 
+                "carbon_footprint": float(metadata["carbon_footprint"]),
+                "sector": metadata.get("sector", "未知"),
+                "similarity_score": round(1 - search_results["raw_results"]["distances"][0][i], 4)
+            })
 
     # 計算節省的碳排放
     original_footprint = best_product['carbon_footprint']
@@ -60,9 +73,9 @@ async def calculate_carbon_footprint_async(product_description: str) -> dict:
     return {
         "search_params": search_results.get('search_params', {}),
         "selected_product": best_product,
+        "candidates": candidates,  # 新增候選產品列表
         "saved_carbon": saved_carbon,
         "environmental_benefits": benefits
-        # 移除這裡的重複 selection_reason，因為已經包含在 best_product 中
     }
 
 
@@ -87,6 +100,17 @@ def print_results(results: dict) -> None:
     print(f"• 相當於減少吹冷氣 {benefits['ac_hours']} 小時的碳排放")
     print(f"• 相當於幫手機充電 {benefits['phone_charges']} 次的碳排放")
     print(f"\n選擇原因: {product['selection_reason']}")
+    
+    # 顯示所有候選產品
+    if "candidates" in results and results["candidates"]:
+        print(f"\n=== 所有候選產品 ({len(results['candidates'])} 個) ===")
+        for i, candidate in enumerate(results["candidates"], 1):
+            print(f"{i}. 產品名稱: {candidate['product_name']}")
+            print(f"   公司: {candidate['company']}")
+            print(f"   碳足跡: {candidate['carbon_footprint']} kg CO2e")
+            print(f"   產業類別: {candidate['sector']}")
+            print(f"   相似度分數: {candidate['similarity_score']:.4f}")
+            print()
 
 if __name__ == "__main__":
     # 示例查詢
