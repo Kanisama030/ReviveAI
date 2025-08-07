@@ -37,7 +37,8 @@ async def brave_search(query: str, count: int = 5, country: str = "TW") -> str:
     if not BRAVE_SEARCH_API_KEY:
         return "錯誤: 找不到 Brave Search API 金鑰。請在 .env 文件中設定 BRAVE_SEARCH_API_KEY。"
         
-    print(f"使用 Brave Search API 搜尋: {query}")
+    # 不使用 print，避免污染 stdio 通道
+    # 如需除錯，可使用 stderr: import sys; print(f"...", file=sys.stderr)
     
     try:
         async with aiohttp.ClientSession() as session:
@@ -138,10 +139,21 @@ async def fetch_webpage(url: str, raw_html: bool = False) -> str:
 if __name__ == "__main__":
     # 根據命令行參數決定運行方式
     import sys
+    import logging
+    
+    # 配置日誌輸出到 stderr，避免污染 stdio 通道
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        stream=sys.stderr
+    )
+    logger = logging.getLogger(__name__)
+    
     if len(sys.argv) > 1 and sys.argv[1] == "--http":
         port = int(sys.argv[2]) if len(sys.argv) > 2 else 3000
-        print(f"以 HTTP 模式啟動 WebTools MCP 服務器，監聽端口 {port}...")
+        logger.info(f"以 HTTP 模式啟動 WebTools MCP 服務器，監聽端口 {port}...")
         mcp.run(transport="http", host="0.0.0.0", port=port)
     else:
-        print("以 stdio 模式啟動 WebTools MCP 服務器...")
+        # stdio 模式下不應該有任何輸出到 stdout
+        # logger.info("以 stdio 模式啟動 WebTools MCP 服務器...")
         mcp.run(transport="stdio")

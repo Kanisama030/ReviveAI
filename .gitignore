@@ -19,3 +19,4 @@ credentials/
 .ipynb_checkpoints
 
 requirements.in
+.vscode/

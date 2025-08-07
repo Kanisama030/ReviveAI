@@ -258,29 +258,31 @@ async def combined_online_sale_stream_endpoint(
     
     except HTTPException as he:
         logger.error(f"拍賣網站文案串流服務處理失敗: {str(he)}")
+        error_message = str(he.detail)
         # 對於串流請求的錯誤，我們也需要返回一個有效的串流響應
-        async def error_response():
+        async def error_response_http():
             yield json.dumps({
                 "type": "error",
-                "error": str(he.detail)
+                "error": error_message
             }) + "\n"
         
         return StreamingResponse(
-            error_response(),
+            error_response_http(),
             media_type="application/json"
         )
     
     except Exception as e:
         logger.error(f"拍賣網站文案串流服務處理失敗: {str(e)}", exc_info=True)
+        error_message = str(e)
         # 對於串流請求的錯誤，我們也需要返回一個有效的串流響應
-        async def error_response():
+        async def error_response_general():
             yield json.dumps({
                 "type": "error",
-                "error": str(e)
+                "error": error_message
             }) + "\n"
         
         return StreamingResponse(
-            error_response(),
+            error_response_general(),
             media_type="application/json"
         )
 
