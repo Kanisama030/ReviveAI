@@ -1,15 +1,18 @@
 import base64
-from openai import AsyncOpenAI
-from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 import os
 import time
 import asyncio
 import mimetypes
 from pathlib import Path
 import filetype  # 使用 filetype 代替 imghdr
+from dotenv import load_dotenv
 
 load_dotenv()
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))  
+
+# 設置 API 金鑰
+client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
 
 # 將圖片轉換為 Base64 編碼的函數 (I/O 操作，但不複雜，可保留同步)
 def encode_image(image_path):
@@ -77,11 +80,13 @@ async def analyze_image(image_path):
 
     1. 商品類型：明確說明這是什麼產品（例如：筆記型電腦、智慧手機、衣服等）
     2. 品牌：如果能識別出品牌，請標明
-    3. 顏色：主要顏色
-    4. 狀況：新舊程度（全新/九成新/八成新等）
-    5. 明顯特點：任何特殊的視覺特點或瑕疵
+    3. 商品外觀：大致尺寸大小、主要顏色
+    4. 商品狀況：新舊程度（全新/九成新/八成新等）
+    5. 明顯瑕疵判斷：清潔程度評估，是否有明顯瑕疵
+    6. 商品特色重點：獨特設計或特色
 
-    請用簡潔的條列式回答，只提供觀察到的具體資訊，150字以內。
+
+    請用繁體中文回答，只提供觀察到的具體資訊，150字以內。
     """
     
     try:
@@ -91,30 +96,24 @@ async def analyze_image(image_path):
         # 取得圖片的 Base64 字串
         base64_image = encode_image(image_path)
         
+        # 解碼 Base64 為 bytes
+        image_bytes = base64.b64decode(base64_image)
+        
         start = time.time()  
 
-        response = await client.responses.create(
-            model="gpt-4.1-nano",
-            input=[
-                {         
-                    "role": "developer",
-                    "content": "你是一位專業的電商平台二手商品圖像分析專家，專門協助賣家優化商品呈現。你的任務是詳細分析圖片中的商品，並提供產品描述。"
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        { "type": "input_text", "text": prompt },
-                        {
-                            "type": "input_image",
-                            "image_url": f"data:{mime_type};base64,{base64_image}",
-                        },
-                    ],
-                }
+        response = await client.aio.models.generate_content(
+            model="gemini-2.5-flash-lite",  # 使用 Gemini 2.5 Flash Lite 模型
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
             ],
+            config=types.GenerateContentConfig(
+                system_instruction="你是一位專業的電商平台二手商品圖像分析專家，專門協助賣家優化商品呈現。你的任務是詳細分析圖片中的商品，並提供產品描述。"
+            )
         )
 
         end = time.time()
-        print(response.output_text)
+        print(response.text)
         print(f"執行時間: {end - start:.2f} 秒")
         return response
     

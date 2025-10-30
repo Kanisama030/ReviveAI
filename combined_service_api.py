@@ -159,7 +159,7 @@ async def combined_online_sale_endpoint(
         
         # 處理結果
         image_analysis = image_results[0]
-        image_analysis_text = image_analysis.output_text
+        image_analysis_text = image_analysis.text
         
         if generate_image and len(image_results) > 1:
             beautified_image_path = image_results[1]
@@ -249,7 +249,7 @@ async def combined_online_sale_stream_endpoint(
         
         # 處理結果
         image_analysis = image_results[0]
-        image_analysis_text = image_analysis.output_text
+        image_analysis_text = image_analysis.text
         
         beautified_image_path = None
         if generate_image and len(image_results) > 1:
@@ -399,7 +399,7 @@ async def combined_selling_post_endpoint(
         
         # 處理結果
         image_analysis = image_results[0]
-        image_analysis_text = image_analysis.output_text
+        image_analysis_text = image_analysis.text
         
         beautified_image_path = None
         if generate_image and len(image_results) > 1:
@@ -563,7 +563,7 @@ async def combined_seeking_post_endpoint(
 
             logger.info(f"開始分析參考圖片")
             image_analysis = await analyze_image(temp_path)
-            image_analysis_text = image_analysis.output_text
+            image_analysis_text = image_analysis.text
 
             # 刪除臨時文件
             os.unlink(temp_path)
