@@ -279,13 +279,14 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
 
 # ================================= 社群徵文功能 =================================
 def process_seeking_post(product_description, purpose, expected_price, contact_info, trade_method, 
-                        seeking_type, deadline, image, style):
+                        seeking_type, deadline, image, style, generate_image=False):
     """
     處理社群徵文功能，調用 API 並處理串流回應
     
     返回組件:
     1. seeking_result_json: 完整結果的 JSON
     2. seeking_image_analysis: 圖片分析結果
+    3. seeking_generated_image: 生成的圖片路徑（如果有）
     """
     try:
         # 轉換中文選項為英文代碼
@@ -302,7 +303,8 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
             'seeking_type': english_seeking_type,
             'deadline': deadline,
             'style': english_style,
-            'stream': True  # 使用串流模式
+            'stream': True,  # 使用串流模式
+            'generate_image': generate_image  # 新增生成圖片選項
         }
         
         # 準備文件資料（如有）
@@ -323,6 +325,7 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
         content_chunks = ""
         metadata_received = False
         streaming_started = False
+        generated_image_path = None
         
         # 處理串流回應
         for line in response.iter_lines():
@@ -333,6 +336,7 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
                 # 處理元數據部分
                 if chunk_data.get("type") == "metadata":
                     image_analysis = chunk_data.get("image_analysis", "")
+                    generated_image_path = chunk_data.get("generated_image", None)
                     metadata_received = True
                     
                     # 傳遞初始元數據，不包含文案內容
@@ -340,7 +344,7 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
                         "success": True,
                         "full_content": "",
                         "streaming_started": False
-                    }, image_analysis
+                    }, image_analysis, generated_image_path
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":
@@ -356,7 +360,7 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
                         "success": True,
                         "full_content": content_chunks,
                         "streaming_started": streaming_started
-                    }, image_analysis
+                    }, image_analysis, generated_image_path
                 
                 # 處理結束標記
                 elif chunk_data.get("type") == "end":
@@ -366,17 +370,17 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
                         "full_content": content_chunks,
                         "streaming_started": True,
                         "completed": True
-                    }, image_analysis
+                    }, image_analysis, generated_image_path
                     break
                 
                 # 處理錯誤
                 elif chunk_data.get("type") == "error":
                     error_msg = chunk_data.get("error", "未知錯誤")
-                    yield {"error": error_msg}, None
+                    yield {"error": error_msg}, None, None
                     return
     
     except Exception as e:
-        yield {"error": f"發生錯誤: {str(e)}"}, None
+        yield {"error": f"發生錯誤: {str(e)}"}, None, None
 
 # ================================= 輔助函數 =================================
 def convert_markdown_to_plain_text(content):
@@ -654,9 +658,9 @@ def reset_all():
         "標準實用", None, None, None, None, None, "",  # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content
         
         # seeking 區塊: seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
-        # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
-        # seeking_image_analysis, seeking_content
+        # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_generate_image, seeking_result_json,
+        # seeking_image_analysis, seeking_content, seeking_generated_image
         "", "", "", "", "請私訊詳詢", "面交/郵寄皆可",  # seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade
-        "購買", "越快越好", None, "標準親切", None,  # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json
-        None, ""  # seeking_image_analysis, seeking_content
+        "購買", "越快越好", None, "標準親切", False, None,  # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_generate_image, seeking_result_json
+        None, "", None  # seeking_image_analysis, seeking_content, seeking_generated_image
     ]
