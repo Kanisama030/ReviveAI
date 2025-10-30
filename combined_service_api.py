@@ -20,6 +20,7 @@ from calculate_carbon import calculate_carbon_footprint_async
 from selling_post_service import generate_selling_post
 from seeking_post_service import generate_seeking_post
 from seeking_image import create_seeking_image
+from ai_image import remake_product_image
 
 # 建立 Router
 router = APIRouter(
@@ -117,7 +118,8 @@ async def save_and_validate_image(image: UploadFile):
 async def combined_online_sale_endpoint(
     description: str = Form(None),
     image: UploadFile = File(...),
-    style: str = Form("normal")  # 添加風格參數，默認為 normal
+    style: str = Form("normal"),  # 添加風格參數，默認為 normal
+    generate_image: bool = Form(False)  # 新增生成美化圖片選項
 ):
     """
     拍賣網站文案服務：分析圖片、優化內容並計算碳足跡
@@ -125,17 +127,44 @@ async def combined_online_sale_endpoint(
     - **description**: 商品描述文字
     - **image**: 商品圖片檔案 (支持 PNG, JPEG, WEBP，最大 20MB)
     - **style**: 文案風格，可選值：normal(標準專業)、casual(輕鬆活潑)、formal(正式商務)、story(故事體驗)
+    - **generate_image**: 是否同時生成AI美化圖片（預設為 false）
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
-    logger.info(f"接收拍賣網站文案服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}")
+    logger.info(f"接收拍賣網站文案服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}, 生成美化圖片={generate_image}")
 
     try:
         # 保存和驗證上傳的圖片
         temp_path = await save_and_validate_image(image)
 
+        # 準備並行任務
+        tasks = []
+        task_types = []
+        
+        # 圖片分析任務
         logger.info(f"開始分析圖片")
-        image_analysis = await analyze_image(temp_path)
+        image_analysis_task = analyze_image(temp_path)
+        tasks.append(image_analysis_task)
+        task_types.append("analysis")
+        
+        # AI 美化圖片任務（如果需要）
+        beautified_image_path = None
+        if generate_image:
+            logger.info(f"開始生成AI美化圖片")
+            beautify_task = remake_product_image(temp_path)
+            tasks.append(beautify_task)
+            task_types.append("beautify")
+        
+        # 並行執行圖片相關任務
+        image_results = await asyncio.gather(*tasks)
+        
+        # 處理結果
+        image_analysis = image_results[0]
         image_analysis_text = image_analysis.output_text
+        
+        if generate_image and len(image_results) > 1:
+            beautified_image_path = image_results[1]
+            if beautified_image_path:
+                logger.info(f"AI美化圖片生成完成: {beautified_image_path}")
 
         # 刪除臨時文件
         os.unlink(temp_path)
@@ -158,7 +187,8 @@ async def combined_online_sale_endpoint(
             data={
                 "image_analysis": image_analysis_text,
                 "optimized_content": optimized_content,
-                "carbon_footprint": carbon_results
+                "carbon_footprint": carbon_results,
+                "beautified_image": beautified_image_path
             }
         )
     except HTTPException as he:
@@ -178,7 +208,8 @@ async def combined_online_sale_endpoint(
 async def combined_online_sale_stream_endpoint(
     description: str = Form(None),
     image: UploadFile = File(...),
-    style: str = Form("normal")  # 添加風格參數，默認為 normal
+    style: str = Form("normal"),  # 添加風格參數，默認為 normal
+    generate_image: bool = Form(False)  # 新增生成美化圖片選項
 ):
     """
     拍賣網站文案服務（串流版）：分析圖片、優化內容並計算碳足跡，以串流方式回應
@@ -186,17 +217,45 @@ async def combined_online_sale_stream_endpoint(
     - **description**: 商品描述文字
     - **image**: 商品圖片檔案 (支持 PNG, JPEG, WEBP，最大 20MB)
     - **style**: 文案風格，可選值：normal(標準專業)、casual(輕鬆活潑)、formal(正式商務)、story(故事體驗)
+    - **generate_image**: 是否同時生成AI美化圖片（預設為 false）
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
-    logger.info(f"接收拍賣網站文案串流服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}")
+    logger.info(f"接收拍賣網站文案串流服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 風格={style}, 生成美化圖片={generate_image}")
 
     try:
         # 保存和驗證上傳的圖片
         temp_path = await save_and_validate_image(image)
 
+        # 準備並行任務
+        tasks = []
+        task_types = []
+        
+        # 圖片分析任務
         logger.info(f"開始分析圖片")
-        image_analysis = await analyze_image(temp_path)
+        image_analysis_task = analyze_image(temp_path)
+        tasks.append(image_analysis_task)
+        task_types.append("analysis")
+        
+        # AI 美化圖片任務（如果需要）
+        beautify_task = None
+        if generate_image:
+            logger.info(f"開始生成AI美化圖片")
+            beautify_task = remake_product_image(temp_path)
+            tasks.append(beautify_task)
+            task_types.append("beautify")
+        
+        # 並行執行圖片相關任務
+        image_results = await asyncio.gather(*tasks)
+        
+        # 處理結果
+        image_analysis = image_results[0]
         image_analysis_text = image_analysis.output_text
+        
+        beautified_image_path = None
+        if generate_image and len(image_results) > 1:
+            beautified_image_path = image_results[1]
+            if beautified_image_path:
+                logger.info(f"AI美化圖片生成完成: {beautified_image_path}")
 
         # 刪除臨時文件
         os.unlink(temp_path)
@@ -221,12 +280,13 @@ async def combined_online_sale_stream_endpoint(
         
         # 創建一個生成器函數，首先發送初始數據，然後串流內容
         async def response_generator():
-            # 首先發送初始數據（圖片分析和碳足跡）
+            # 首先發送初始數據（圖片分析、碳足跡、搜尋結果和美化圖片）
             initial_data = {
                 "type": "metadata",
                 "image_analysis": image_analysis_text,
                 "search_results": search_results,
-                "carbon_footprint": carbon_results
+                "carbon_footprint": carbon_results,
+                "beautified_image": beautified_image_path
             }
             yield json.dumps(initial_data) + "\n"
             
@@ -294,7 +354,8 @@ async def combined_selling_post_endpoint(
     contact_info: str = Form("請私訊詳詢"),
     trade_method: str = Form("面交/郵寄皆可"),
     style: str = Form("normal"),
-    stream: bool = Form(False)  # 新增串流選項
+    stream: bool = Form(False),  # 新增串流選項
+    generate_image: bool = Form(False)  # 新增生成美化圖片選項
 ):
     """
     社群銷售貼文服務：分析圖片、計算碳足跡並生成社群平台銷售文案
@@ -306,17 +367,45 @@ async def combined_selling_post_endpoint(
     - **trade_method**: 交易方式
     - **style**: 文案風格，可選值:normal (標準實用)、storytelling (故事體驗)、minimalist (簡約精要)、bargain (超值優惠)
     - **stream**: 是否使用串流回應（預設為 false）
+    - **generate_image**: 是否同時生成AI美化圖片（預設為 false）
     """
     desc_preview = description[:50] + "..." if description and len(description) > 50 else description
-    logger.info(f"接收社群銷售貼文服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 價格={price}, 串流={stream}")
+    logger.info(f"接收社群銷售貼文服務請求: 圖片={image.filename}, 描述預覽={desc_preview}, 價格={price}, 串流={stream}, 生成美化圖片={generate_image}")
 
     try:
         # 保存和驗證上傳的圖片
         temp_path = await save_and_validate_image(image)
 
+        # 準備並行任務
+        tasks = []
+        task_types = []
+        
+        # 圖片分析任務
         logger.info(f"開始分析圖片")
-        image_analysis = await analyze_image(temp_path)
+        image_analysis_task = analyze_image(temp_path)
+        tasks.append(image_analysis_task)
+        task_types.append("analysis")
+        
+        # AI 美化圖片任務（如果需要）
+        beautify_task = None
+        if generate_image:
+            logger.info(f"開始生成AI美化圖片")
+            beautify_task = remake_product_image(temp_path)
+            tasks.append(beautify_task)
+            task_types.append("beautify")
+        
+        # 並行執行圖片相關任務
+        image_results = await asyncio.gather(*tasks)
+        
+        # 處理結果
+        image_analysis = image_results[0]
         image_analysis_text = image_analysis.output_text
+        
+        beautified_image_path = None
+        if generate_image and len(image_results) > 1:
+            beautified_image_path = image_results[1]
+            if beautified_image_path:
+                logger.info(f"AI美化圖片生成完成: {beautified_image_path}")
 
         # 刪除臨時文件
         os.unlink(temp_path)
@@ -354,12 +443,13 @@ async def combined_selling_post_endpoint(
 
             # 創建一個生成器函數，首先發送其他數據，然後串流文案內容
             async def response_generator():
-                # 首先發送初始數據（圖片分析、碳足跡和搜尋結果）
+                # 首先發送初始數據（圖片分析、碳足跡、搜尋結果和美化圖片）
                 initial_data = {
                     "type": "metadata",
                     "image_analysis": image_analysis_text,
                     "carbon_footprint": carbon_results,
-                    "search_results": search_results
+                    "search_results": search_results,
+                    "beautified_image": beautified_image_path
                 }
                 yield json.dumps(initial_data) + "\n"
                 
@@ -412,7 +502,8 @@ async def combined_selling_post_endpoint(
                     data={
                         "image_analysis": image_analysis_text,
                         "selling_post": selling_post_result["selling_post"],
-                        "carbon_footprint": carbon_results
+                        "carbon_footprint": carbon_results,
+                        "beautified_image": beautified_image_path
                     }
                 )
         

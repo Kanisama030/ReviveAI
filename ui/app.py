@@ -93,6 +93,14 @@ def create_app():
                             label="文案風格", 
                             value="標準專業"
                         )
+                        
+                        # 添加生成美化圖片選項
+                        online_generate_image = gr.Checkbox(
+                            label="同時生成AI修圖",
+                            value=False,
+                            info="使用AI技術美化商品圖片，讓商品看起來更專業、更吸引人！(會需要一些時間)"
+                        )
+                        
                         online_submit = gr.Button("生成拍賣文案", variant="primary", elem_classes=["submit-btn"])
                     
                     # 右側輸出區域
@@ -102,7 +110,14 @@ def create_app():
                                 online_result_json = gr.JSON(visible=False)  # 儲存完整結果
                                 online_title = gr.Textbox(label="優化商品標題", lines=2, interactive=False, show_copy_button=True)
                                 online_basic_info = gr.Textbox(label="商品詳細內容", lines=48, interactive=False, show_copy_button=True)
-                                
+                            
+                            with gr.Tab("AI修圖"):
+                                online_beautified_image = gr.Image(
+                                    label="AI 美化的商品圖片",
+                                    show_download_button=True,
+                                    interactive=False
+                                )
+                            
                             with gr.Tab("碳足跡圖表"):
                                 online_carbon_chart = gr.Plot(label="環保效益視覺化")
                                 
@@ -126,7 +141,8 @@ def create_app():
                             "八成新",  # 商品狀態
                             "Apple",  # 品牌
                             "256GB 儲存空間，8GB 記憶體，玫瑰金色。平時主要用於文書處理和上網，保存良好，但背後有輕微使用痕跡。原價約32,000元，現在想換新機所以出售。",  # 補充說明
-                            "輕鬆活潑"  # 文案風格
+                            "輕鬆活潑",  # 文案風格
+                            True  # 生成美化圖片
                         ]
                     ],
                     inputs=[
@@ -136,7 +152,8 @@ def create_app():
                         online_condition, 
                         online_brand, 
                         online_desc, 
-                        online_style
+                        online_style,
+                        online_generate_image
                     ],
                     examples_per_page=1,
                     label="點擊範例快速填入表單",
@@ -180,11 +197,11 @@ def create_app():
                         gr.Info(f"處理失敗：{result['error']}")
                     return gr.update(interactive=True, value="生成拍賣文案") if result and ("success" in result or "error" in result) else gr.update()
                 
-                def process_online_sale_with_form(product_name, desc, image, style, usage_time, condition, brand):
+                def process_online_sale_with_form(product_name, desc, image, style, usage_time, condition, brand, generate_image):
                     # 組合表單資訊
                     combined_desc = combine_form_info(product_name, desc, usage_time, condition, brand)
                     # 調用原有的處理函數並正確處理 generator
-                    yield from process_online_sale(combined_desc, image, style)
+                    yield from process_online_sale(combined_desc, image, style, generate_image)
                 
                 online_submit.click(
                     start_online_processing,
@@ -192,8 +209,8 @@ def create_app():
                     outputs=[online_submit]
                 ).then(
                     process_online_sale_with_form, 
-                    inputs=[online_product_name, online_desc, online_image, online_style, online_usage_time, online_condition, online_brand],
-                    outputs=[online_result_json, online_image_analysis, online_title, online_basic_info, online_carbon, online_search, online_carbon_chart]
+                    inputs=[online_product_name, online_desc, online_image, online_style, online_usage_time, online_condition, online_brand, online_generate_image],
+                    outputs=[online_result_json, online_image_analysis, online_title, online_basic_info, online_carbon, online_search, online_carbon_chart, online_beautified_image]
                 ).then(
                     finish_online_processing,
                     inputs=[online_result_json],
@@ -254,6 +271,14 @@ def create_app():
                             label="文案風格", 
                             value="標準實用"
                         )
+                        
+                        # 添加生成美化圖片選項
+                        selling_generate_image = gr.Checkbox(
+                            label="同時生成AI修圖",
+                            value=False,
+                            info="使用AI技術美化商品圖片，讓商品看起來更專業、更吸引人！(會需要一些時間)"
+                        )
+                        
                         selling_submit = gr.Button("生成社群賣文", variant="primary", elem_classes=["submit-btn"])
                     
                     # 右側輸出區域
@@ -262,7 +287,14 @@ def create_app():
                             with gr.Tab("文案輸出"):
                                 selling_result_json = gr.JSON(visible=False)  # 儲存完整結果
                                 selling_content = gr.Textbox(label="社群銷售文案", lines=20, interactive=False, show_copy_button=True)
-                                
+                            
+                            with gr.Tab("AI修圖"):
+                                selling_beautified_image = gr.Image(
+                                    label="AI 美化的商品圖片",
+                                    show_download_button=True,
+                                    interactive=False
+                                )
+                            
                             with gr.Tab("碳足跡圖表"):
                                 selling_carbon_chart = gr.Plot(label="環保效益視覺化")
                                 
@@ -289,7 +321,8 @@ def create_app():
                             "請私訊詳詢",  # 聯絡方式
                             "面交/郵寄/交貨便",  # 交易方式
                             "256GB 儲存空間，8GB 記憶體，玫瑰金色。平時主要用於文書處理，保存良好但背後有小瑕疵。誠心出售，可議價。",  # 補充說明
-                            "超值優惠"  # 文案風格
+                            "超值優惠",  # 文案風格
+                            True  # 生成美化圖片
                         ]
                     ],
                     inputs=[
@@ -302,7 +335,8 @@ def create_app():
                         selling_contact,
                         selling_trade,
                         selling_desc,
-                        selling_style
+                        selling_style,
+                        selling_generate_image
                     ],
                     examples_per_page=1,
                     label="點擊範例快速填入表單",
@@ -346,13 +380,13 @@ def create_app():
                     
                     return combined_desc
                 
-                def process_selling_post_with_streaming(product_name, desc, image, price, contact_info, trade_method, usage_time, condition, brand, style):
+                def process_selling_post_with_streaming(product_name, desc, image, price, contact_info, trade_method, usage_time, condition, brand, style, generate_image):
                     """處理社群賣文並直接串流輸出到各個組件，轉換為純文字格式"""
                     # 組合表單資訊
                     combined_desc = combine_selling_form_info(product_name, desc, usage_time, condition, brand)
-                    for result in process_selling_post(combined_desc, image, price, contact_info, trade_method, style):
-                        if len(result) == 5:  # 正常回應：(json, image_analysis, carbon, carbon_chart, search)
-                            result_json, image_analysis, carbon, carbon_chart, search = result
+                    for result in process_selling_post(combined_desc, image, price, contact_info, trade_method, style, generate_image):
+                        if len(result) == 6:  # 正常回應：(json, image_analysis, carbon, carbon_chart, search, beautified_image)
+                            result_json, image_analysis, carbon, carbon_chart, search, beautified_image = result
                             
                             # 從 result_json 中提取文案內容並轉換為純文字格式
                             if result_json and "success" in result_json and result_json["success"]:
@@ -362,7 +396,7 @@ def create_app():
                             else:
                                 content = ""
                             
-                            yield result_json, image_analysis, carbon, carbon_chart, search, content
+                            yield result_json, image_analysis, carbon, carbon_chart, search, content, beautified_image
                         else:
                             # 錯誤情況
                             yield result + (None,)  # 補齊長度
@@ -373,8 +407,8 @@ def create_app():
                     outputs=[selling_submit]
                 ).then(
                     process_selling_post_with_streaming, 
-                    inputs=[selling_product_name, selling_desc, selling_image, selling_price, selling_contact, selling_trade, selling_usage_time, selling_condition, selling_brand, selling_style],
-                    outputs=[selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content]
+                    inputs=[selling_product_name, selling_desc, selling_image, selling_price, selling_contact, selling_trade, selling_usage_time, selling_condition, selling_brand, selling_style, selling_generate_image],
+                    outputs=[selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content, selling_beautified_image]
                 ).then(
                     finish_selling_processing,
                     inputs=[selling_result_json],
@@ -560,10 +594,10 @@ def create_app():
             outputs=[
                 online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis, 
                 online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
-                online_condition, online_brand, online_carbon_chart,
+                online_condition, online_brand, online_carbon_chart, online_generate_image, online_beautified_image,
                 selling_image, selling_product_name, selling_desc, selling_price, selling_contact, selling_trade, 
                 selling_usage_time, selling_condition, selling_brand,
-                selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content,
+                selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content, selling_generate_image, selling_beautified_image,
                 seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
                 seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_generate_image, seeking_result_json,
                 seeking_image_analysis, seeking_content, seeking_generated_image

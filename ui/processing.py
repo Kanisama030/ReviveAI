@@ -53,7 +53,7 @@ def convert_chinese_to_english(value, mapping_type):
     return mapping.get(value, value)  # 如果找不到映射，返回原值
 
 # ================================= 拍賣網站功能 =================================
-def process_online_sale(description, image, style):
+def process_online_sale(description, image, style, generate_image=False):
     """
     處理拍賣網站文案功能，調用 API 並處理串流回應
     
@@ -65,9 +65,10 @@ def process_online_sale(description, image, style):
     5. online_carbon: 碳足跡分析
     6. online_search: 網路搜尋結果
     7. online_carbon_chart: 碳足跡圖表
+    8. online_beautified_image: AI 美化圖片路徑
     """
     if image is None:
-        yield {"error": "請上傳商品圖片"}, None, None, None, None, None, None
+        yield {"error": "請上傳商品圖片"}, None, None, None, None, None, None, None
         return
     
     try:
@@ -78,7 +79,8 @@ def process_online_sale(description, image, style):
         files = {'image': (os.path.basename(image), open(image, 'rb'), 'image/jpeg')}
         data = {
             'description': description or "",
-            'style': english_style
+            'style': english_style,
+            'generate_image': generate_image
         }
         
         # 創建串流請求
@@ -97,6 +99,7 @@ def process_online_sale(description, image, style):
         current_title = ""
         metadata_received = False
         streaming_started = False
+        beautified_image_path = None
         
         # 處理串流回應
         for line in response.iter_lines():
@@ -109,6 +112,10 @@ def process_online_sale(description, image, style):
                     image_analysis = chunk_data.get("image_analysis", "")
                     search_results = chunk_data.get("search_results", "")
                     carbon_footprint = chunk_data.get("carbon_footprint", {})
+                    beautified_image_path = chunk_data.get("beautified_image", None)
+                    # 將相對路徑轉換為絕對路徑，並統一路徑分隔符
+                    if beautified_image_path:
+                        beautified_image_path = os.path.abspath(beautified_image_path).replace('\\', '/')
                     carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
                     carbon_chart = create_carbon_chart(carbon_footprint) if carbon_footprint else None
                     metadata_received = True
@@ -118,7 +125,7 @@ def process_online_sale(description, image, style):
                         "success": True,
                         "full_content": "",
                         "streaming_started": False
-                    }, image_analysis, "", "", carbon_text, search_results, carbon_chart
+                    }, image_analysis, "", "", carbon_text, search_results, carbon_chart, beautified_image_path
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":
@@ -139,7 +146,7 @@ def process_online_sale(description, image, style):
                         "success": True,
                         "full_content": content_chunks,
                         "streaming_started": streaming_started
-                    }, image_analysis, current_title, current_content, carbon_text, search_results, carbon_chart
+                    }, image_analysis, current_title, current_content, carbon_text, search_results, carbon_chart, beautified_image_path
                 
                 # 處理結束標記
                 elif chunk_data.get("type") == "end":
@@ -156,20 +163,20 @@ def process_online_sale(description, image, style):
                         "full_content": content_chunks,
                         "streaming_started": True,
                         "completed": True
-                    }, image_analysis, content_sections["title_plain"], content_sections["basic_info_plain"], carbon_text, search_results, carbon_chart
+                    }, image_analysis, content_sections["title_plain"], content_sections["basic_info_plain"], carbon_text, search_results, carbon_chart, beautified_image_path
                     break
                 
                 # 處理錯誤
                 elif chunk_data.get("type") == "error":
                     error_msg = chunk_data.get("error", "未知錯誤")
-                    yield {"error": error_msg}, None, None, None, None, None, None
+                    yield {"error": error_msg}, None, None, None, None, None, None, None
                     return
     
     except Exception as e:
-        yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None, None, None
+        yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None, None, None, None
 
 # ================================= 社群賣文功能 =================================
-def process_selling_post(description, image, price, contact_info, trade_method, style):
+def process_selling_post(description, image, price, contact_info, trade_method, style, generate_image=False):
     """
     處理社群賣文功能，調用 API 並處理串流回應
     
@@ -179,9 +186,10 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
     3. selling_carbon: 碳足跡分析
     4. selling_carbon_chart: 碳足跡圖表
     5. selling_search: 網路搜尋結果
+    6. selling_beautified_image: AI 美化圖片路徑
     """
     if image is None:
-        yield {"error": "請上傳商品圖片"}, None, None, None, None
+        yield {"error": "請上傳商品圖片"}, None, None, None, None, None
         return
     
     try:
@@ -196,7 +204,8 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
             'contact_info': contact_info,
             'trade_method': trade_method,
             'style': english_style,
-            'stream': True  # 使用串流模式
+            'stream': True,  # 使用串流模式
+            'generate_image': generate_image
         }
         
         # 創建串流請求
@@ -214,6 +223,7 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
         content_chunks = ""
         metadata_received = False
         streaming_started = False
+        beautified_image_path = None
         
         # 處理串流回應
         for line in response.iter_lines():
@@ -226,6 +236,10 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
                     image_analysis = chunk_data.get("image_analysis", "")
                     carbon_footprint = chunk_data.get("carbon_footprint", {})
                     search_results = chunk_data.get("search_results", "")
+                    beautified_image_path = chunk_data.get("beautified_image", None)
+                    # 將相對路徑轉換為絕對路徑，並統一路徑分隔符
+                    if beautified_image_path:
+                        beautified_image_path = os.path.abspath(beautified_image_path).replace('\\', '/')
                     carbon_text = format_carbon_footprint(carbon_footprint) if carbon_footprint else ""
                     carbon_chart = create_carbon_chart(carbon_footprint) if carbon_footprint else None
                     metadata_received = True
@@ -235,7 +249,7 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
                         "success": True,
                         "full_content": "",
                         "streaming_started": False
-                    }, image_analysis, carbon_text, carbon_chart, search_results
+                    }, image_analysis, carbon_text, carbon_chart, search_results, beautified_image_path
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":
@@ -251,7 +265,7 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
                         "success": True,
                         "full_content": content_chunks,
                         "streaming_started": streaming_started
-                    }, image_analysis, carbon_text, carbon_chart, search_results
+                    }, image_analysis, carbon_text, carbon_chart, search_results, beautified_image_path
                 
                 # 處理結束標記
                 elif chunk_data.get("type") == "end":
@@ -265,17 +279,17 @@ def process_selling_post(description, image, price, contact_info, trade_method, 
                         "full_content": content_chunks,
                         "streaming_started": True,
                         "completed": True
-                    }, image_analysis, carbon_text, carbon_chart, search_results
+                    }, image_analysis, carbon_text, carbon_chart, search_results, beautified_image_path
                     break
                 
                 # 處理錯誤
                 elif chunk_data.get("type") == "error":
                     error_msg = chunk_data.get("error", "未知錯誤")
-                    yield {"error": error_msg}, None, None, None, None
+                    yield {"error": error_msg}, None, None, None, None, None
                     return
     
     except Exception as e:
-        yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None
+        yield {"error": f"發生錯誤: {str(e)}"}, None, None, None, None, None
 
 # ================================= 社群徵文功能 =================================
 def process_seeking_post(product_description, purpose, expected_price, contact_info, trade_method, 
@@ -663,17 +677,17 @@ def reset_all():
     return [
         # online 區塊: online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis, 
         # online_title, online_basic_info, online_carbon, online_search, online_usage_time, 
-        # online_condition, online_brand, online_carbon_chart
+        # online_condition, online_brand, online_carbon_chart, online_generate_image, online_beautified_image
         None, "", "", "標準專業", None, None,  # online_image, online_product_name, online_desc, online_style, online_result_json, online_image_analysis
         None, None, None, None, 2,  # online_title, online_basic_info, online_carbon, online_search, online_usage_time
-        "八成新", "", None,  # online_condition, online_brand, online_carbon_chart
+        "八成新", "", None, False, None,  # online_condition, online_brand, online_carbon_chart, online_generate_image, online_beautified_image
         
         # selling 區塊: selling_image, selling_product_name, selling_desc, selling_price, selling_contact, selling_trade, 
         # selling_usage_time, selling_condition, selling_brand,
-        # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content
+        # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content, selling_generate_image, selling_beautified_image
         None, "", "", "", "請私訊詳詢", "面交/郵寄皆可",  # selling_image, selling_product_name, selling_desc, selling_price, selling_contact, selling_trade
         2, "八成新", "",  # selling_usage_time, selling_condition, selling_brand
-        "標準實用", None, None, None, None, None, "",  # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content
+        "標準實用", None, None, None, None, None, "", False, None,  # selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content, selling_generate_image, selling_beautified_image
         
         # seeking 區塊: seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
         # seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_generate_image, seeking_result_json,
