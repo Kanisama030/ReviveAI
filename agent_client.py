@@ -28,7 +28,7 @@ async def search_product_info(query):
             - raw_response: 原始響應對象
     """
     # 使用 OpenAI 模型
-    model = ChatOpenAI(model="gpt-4.1-nano")
+    model = ChatOpenAI(model="gpt-4o-mini")
     
     # 配置 MCP 客戶端並連接到 WebTools 服務器
     client = MultiServerMCPClient(
@@ -67,7 +67,7 @@ async def search_product_info(query):
 - 如果網頁抓取失敗：基於搜尋結果摘要分析，不要重試其他網站
 - 429 錯誤：繼續執行 fetch_webpage，不重試搜尋
 
-【最終報告】（繁體中文，內容長度限 300 字以內）
+【最終報告】（繁體中文，內容長度限 200 字以內）
 - 產品基本介紹
 - 產品規格  
 - 主要功能特點

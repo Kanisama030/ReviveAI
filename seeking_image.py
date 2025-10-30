@@ -33,10 +33,10 @@ async def generate_image_with_gemini(prompt, output_dir="temp_images"):
         os.makedirs(output_dir)
         
     try:
-        # 使用 Gemini 2.5 Flash Image模型生成圖片
+        # 使用 Gemini 2.5 Flash Image模型生成圖片（非同步版本）
         client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
         
-        response = client.models.generate_content(
+        response = await client.aio.models.generate_content(
             model='gemini-2.5-flash-image',
             contents=[prompt],
         )

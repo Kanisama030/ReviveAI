@@ -14,3 +14,4 @@ uvicorn==0.34.2
 plotly==6.1.1
 filetype==1.2.0
 gradio==5.49.1
+posthog<6.0.0
