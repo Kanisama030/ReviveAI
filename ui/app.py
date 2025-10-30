@@ -422,6 +422,14 @@ def create_app():
                             label="文案風格", 
                             value="標準親切"
                         )
+                        
+                        # 添加生成圖片選項
+                        seeking_generate_image = gr.Checkbox(
+                            label="同時生成商品參考圖片",
+                            value=False,
+                            info="生成圖片能讓徵求文案更具體、更吸引人！(會需要一些時間)"
+                        )
+                        
                         seeking_submit = gr.Button("生成徵求文案", variant="primary", elem_classes=["submit-btn"])
                     
                     # 右側輸出區域
@@ -433,6 +441,13 @@ def create_app():
                                 
                             with gr.Tab("圖片分析"):
                                 seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")
+                            
+                            with gr.Tab("生成圖片"):
+                                seeking_generated_image = gr.Image(
+                                    label="AI 生成的商品參考圖",
+                                    show_download_button=True,
+                                    interactive=False
+                                )
                 
                 # 範例功能
                 gr.Markdown("### 📝 快速範例")
@@ -495,13 +510,13 @@ def create_app():
                     
                     return combined_desc
                 
-                def process_seeking_post_with_streaming(product_name, desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
+                def process_seeking_post_with_streaming(product_name, desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style, generate_image):
                     """處理社群徵文並直接串流輸出到各個組件，轉換為純文字格式"""
                     # 組合表單資訊
                     combined_desc = combine_seeking_form_info(product_name, desc)
-                    for result in process_seeking_post(combined_desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style):
-                        if len(result) == 2:  # 正常回應：(json, image_analysis)
-                            result_json, image_analysis = result
+                    for result in process_seeking_post(combined_desc, purpose, price, contact_info, trade_method, type_val, deadline, image, style, generate_image):
+                        if len(result) == 3:  # 正常回應：(json, image_analysis, generated_image)
+                            result_json, image_analysis, generated_image = result
                             
                             # 從 result_json 中提取文案內容並轉換為純文字格式
                             if result_json and "success" in result_json and result_json["success"]:
@@ -511,10 +526,10 @@ def create_app():
                             else:
                                 content = ""
                             
-                            yield result_json, image_analysis, content
+                            yield result_json, image_analysis, content, generated_image
                         else:
                             # 錯誤情況
-                            yield result + (None,)  # 補齊長度
+                            yield result + (None, None)  # 補齊長度
                 
                 seeking_submit.click(
                     start_seeking_processing,
@@ -524,9 +539,9 @@ def create_app():
                     process_seeking_post_with_streaming, 
                     inputs=[
                         seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, 
-                        seeking_trade, seeking_type, seeking_deadline, seeking_image, seeking_style
+                        seeking_trade, seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_generate_image
                     ],
-                    outputs=[seeking_result_json, seeking_image_analysis, seeking_content]
+                    outputs=[seeking_result_json, seeking_image_analysis, seeking_content, seeking_generated_image]
                 ).then(
                     finish_seeking_processing,
                     inputs=[seeking_result_json],
@@ -550,8 +565,8 @@ def create_app():
                 selling_usage_time, selling_condition, selling_brand,
                 selling_style, selling_result_json, selling_image_analysis, selling_carbon, selling_carbon_chart, selling_search, selling_content,
                 seeking_product_name, seeking_desc, seeking_purpose, seeking_price, seeking_contact, seeking_trade,
-                seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_result_json,
-                seeking_image_analysis, seeking_content
+                seeking_type, seeking_deadline, seeking_image, seeking_style, seeking_generate_image, seeking_result_json,
+                seeking_image_analysis, seeking_content, seeking_generated_image
             ]
         )
         

@@ -20,6 +20,7 @@ from streaming_content_service import generate_streaming_product_content
 from calculate_carbon import calculate_carbon_footprint_async
 from selling_post_service import generate_selling_post
 from seeking_post_service import generate_seeking_post
+from seeking_image import create_seeking_image
 
 # 建立 Router
 router = APIRouter(
@@ -258,29 +259,31 @@ async def combined_online_sale_stream_endpoint(
     
     except HTTPException as he:
         logger.error(f"拍賣網站文案串流服務處理失敗: {str(he)}")
+        error_message = str(he.detail)
         # 對於串流請求的錯誤，我們也需要返回一個有效的串流響應
-        async def error_response():
+        async def error_response_http():
             yield json.dumps({
                 "type": "error",
-                "error": str(he.detail)
+                "error": error_message
             }) + "\n"
         
         return StreamingResponse(
-            error_response(),
+            error_response_http(),
             media_type="application/json"
         )
     
     except Exception as e:
         logger.error(f"拍賣網站文案串流服務處理失敗: {str(e)}", exc_info=True)
+        error_message = str(e)
         # 對於串流請求的錯誤，我們也需要返回一個有效的串流響應
-        async def error_response():
+        async def error_response_general():
             yield json.dumps({
                 "type": "error",
-                "error": str(e)
+                "error": error_message
             }) + "\n"
         
         return StreamingResponse(
-            error_response(),
+            error_response_general(),
             media_type="application/json"
         )
 
@@ -438,7 +441,8 @@ async def combined_seeking_post_endpoint(
     deadline: str = Form("越快越好"),
     image: Optional[UploadFile] = File(None), 
     style: str = Form("normal"),
-    stream: bool = Form(False)  # 新增串流選項
+    stream: bool = Form(False),  # 新增串流選項
+    generate_image: bool = Form(False)  # 新增生成圖片選項
 ):
     """
     社群徵品貼文服務：分析圖片(可選)、計算碳足跡並生成社群平台徵求文案
@@ -453,12 +457,14 @@ async def combined_seeking_post_endpoint(
     - **image**: 參考圖片檔案 (可選，支持 PNG, JPEG, WEBP，最大 20MB)
     - **style**: 文案風格，可選值:normal (標準親切)、urgent (急需緊急)、 budget (預算有限)、collector (收藏愛好)
     - **stream**: 是否使用串流回應（預設為 false）
+    - **generate_image**: 是否同時生成商品參考圖片（預設為 false）
     """
     desc_preview = product_description[:50] + "..." if len(product_description) > 50 else product_description
-    logger.info(f"接收社群徵品貼文服務請求: 描述預覽={desc_preview}, 類型={seeking_type}, 串流={stream}")
+    logger.info(f"接收社群徵品貼文服務請求: 描述預覽={desc_preview}, 類型={seeking_type}, 串流={stream}, 生成圖片={generate_image}")
 
     try:
         image_analysis_text = ""
+        generated_image_path = None
 
         # 如果有上傳圖片，則進行分析
         if image and image.filename:  # 確保 image 存在且有檔案名稱
@@ -471,6 +477,14 @@ async def combined_seeking_post_endpoint(
 
             # 刪除臨時文件
             os.unlink(temp_path)
+        
+        # 如果需要生成圖片，則生成參考圖片
+        if generate_image:
+            logger.info(f"開始生成商品參考圖片")
+            # 組合生成圖片的描述
+            image_generation_prompt = f"{product_description} - {purpose} - 預算: {expected_price}"
+            generated_image_path = await create_seeking_image(image_generation_prompt)
+            logger.info(f"商品參考圖片生成完成: {generated_image_path}")
         
         # 將參考圖片分析結果與原始描述結合 (如果有圖片分析)
         combined_description = product_description
@@ -496,10 +510,11 @@ async def combined_seeking_post_endpoint(
             
             # 創建一個生成器函數，首先發送其他數據，然後串流文案內容
             async def response_generator():
-                # 首先發送初始數據（圖片分析）
+                # 首先發送初始數據（圖片分析和生成的圖片）
                 initial_data = {
                     "type": "metadata",
-                    "image_analysis": image_analysis_text
+                    "image_analysis": image_analysis_text,
+                    "generated_image": generated_image_path
                 }
                 yield json.dumps(initial_data) + "\n"
                 
@@ -540,7 +555,8 @@ async def combined_seeking_post_endpoint(
                     success=True,
                     data={
                         "image_analysis": image_analysis_text if image else "",
-                        "seeking_post": seeking_post_result["seeking_post"]
+                        "seeking_post": seeking_post_result["seeking_post"],
+                        "generated_image": generated_image_path
                     }
                 )
         
@@ -552,6 +568,39 @@ async def combined_seeking_post_endpoint(
         )
     except Exception as e:
         logger.error(f"社群徵品貼文服務處理失敗: {str(e)}", exc_info=True)
+        return ApiResponse(
+            success=False,
+            error=str(e)
+        )
+
+@router.post("/generate_seeking_image", response_model=ApiResponse)
+async def generate_seeking_image_endpoint(
+    description: str = Form(...)
+):
+    """
+    生成徵物參考圖片服務
+
+    - **description**: 徵求的商品描述
+    """
+    logger.info(f"接收生成徵物參考圖片請求: {description}")
+
+    try:
+        image_path = create_seeking_image(description)
+        
+        if not image_path:
+            raise HTTPException(status_code=500, detail="圖片生成失敗")
+
+        # 返回的是相對於 UI 的路徑
+        relative_path = os.path.relpath(image_path, "/Users/chenyirui/project/ReviveAI/ui")
+
+        return ApiResponse(
+            success=True,
+            data={
+                "image_path": relative_path
+            }
+        )
+    except Exception as e:
+        logger.error(f"生成徵物參考圖片失敗: {str(e)}", exc_info=True)
         return ApiResponse(
             success=False,
             error=str(e)

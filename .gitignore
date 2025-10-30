@@ -19,3 +19,5 @@ credentials/
 .ipynb_checkpoints
 
 requirements.in
+.vscode/
+/ui/temp_images
