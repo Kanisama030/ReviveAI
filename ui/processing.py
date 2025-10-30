@@ -337,14 +337,32 @@ def process_seeking_post(product_description, purpose, expected_price, contact_i
                 if chunk_data.get("type") == "metadata":
                     image_analysis = chunk_data.get("image_analysis", "")
                     generated_image_path = chunk_data.get("generated_image", None)
+                    # 將相對路徑轉換為絕對路徑，並統一路徑分隔符
+                    if generated_image_path:
+                        generated_image_path = os.path.abspath(generated_image_path).replace('\\', '/')
                     metadata_received = True
                     
-                    # 傳遞初始元數據，不包含文案內容
+                    # 傳遞初始元數據
                     yield {
                         "success": True,
                         "full_content": "",
                         "streaming_started": False
                     }, image_analysis, generated_image_path
+                
+                # 處理圖片更新
+                elif chunk_data.get("type") == "image_update":
+                    updated_image_path = chunk_data.get("generated_image", None)
+                    if updated_image_path:
+                        # 將相對路徑轉換為絕對路徑，並統一路徑分隔符
+                        updated_image_path = os.path.abspath(updated_image_path).replace('\\', '/')
+                        generated_image_path = updated_image_path
+                        # 發送圖片更新，但保持文案內容不變
+                        yield {
+                            "success": True,
+                            "full_content": content_chunks,
+                            "streaming_started": streaming_started,
+                            "image_updated": True
+                        }, image_analysis, generated_image_path
                 
                 # 處理內容部分
                 elif chunk_data.get("type") == "content":

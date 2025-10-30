@@ -60,7 +60,8 @@ async def generate_image_with_gemini(prompt, output_dir="temp_images"):
         with open(image_path, 'wb') as f:
             f.write(image_parts[0])
         
-        return image_path
+        # 返回統一格式的絕對路徑
+        return os.path.abspath(image_path).replace('\\', '/')
     except Exception as e:
         print(f"Error calling Gemini Image API: {e}")
         return None
@@ -120,7 +121,7 @@ async def create_seeking_image(user_input: str):
     print(f"生成的提示詞: {detailed_prompt}")
     
     # 2. 使用詳細提示詞生成圖片
-    image_path = await generate_image_with_gemini(detailed_prompt, output_dir="/Users/chenyirui/project/ReviveAI/ui/temp_images")
+    image_path = await generate_image_with_gemini(detailed_prompt, output_dir="ui/temp_images")
     
     if not image_path:
         print("生成圖片失敗。")

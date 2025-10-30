@@ -438,9 +438,6 @@ def create_app():
                             with gr.Tab("文案輸出"):
                                 seeking_result_json = gr.JSON(visible=False)  # 儲存完整結果
                                 seeking_content = gr.Textbox(label="社群徵求文案", lines=20, interactive=False, show_copy_button=True)
-                                
-                            with gr.Tab("圖片分析"):
-                                seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")
                             
                             with gr.Tab("生成圖片"):
                                 seeking_generated_image = gr.Image(
@@ -448,6 +445,9 @@ def create_app():
                                     show_download_button=True,
                                     interactive=False
                                 )
+                            
+                            with gr.Tab("圖片分析"):
+                                seeking_image_analysis = gr.Markdown(label="參考圖片分析結果")
                 
                 # 範例功能
                 gr.Markdown("### 📝 快速範例")

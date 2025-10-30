@@ -8,7 +8,6 @@ import asyncio
 import json
 from fastapi.responses import StreamingResponse
 from pathlib import Path
-import filetype  # 使用 filetype 代替 imghdr
 
 # 獲取日誌記錄器
 logger = logging.getLogger("reviveai_api")
@@ -478,25 +477,29 @@ async def combined_seeking_post_endpoint(
             # 刪除臨時文件
             os.unlink(temp_path)
         
-        # 如果需要生成圖片，則生成參考圖片
-        if generate_image:
-            logger.info(f"開始生成商品參考圖片")
-            # 組合生成圖片的描述
-            image_generation_prompt = f"{product_description} - {purpose} - 預算: {expected_price}"
-            generated_image_path = await create_seeking_image(image_generation_prompt)
-            logger.info(f"商品參考圖片生成完成: {generated_image_path}")
-        
         # 將參考圖片分析結果與原始描述結合 (如果有圖片分析)
         combined_description = product_description
         if image_analysis_text:
             combined_description = f"徵求商品：\n{product_description}\n\n參考圖片分析:\n{image_analysis_text}"
         
+        # 準備圖片生成任務（如果需要）
+        image_generation_task = None
+        if generate_image:
+            logger.info(f"開始生成商品參考圖片")
+            # 組合生成圖片的描述
+            image_generation_prompt = f"{product_description} - {purpose} - 預算: {expected_price}"
+            image_generation_task = create_seeking_image(image_generation_prompt)
+        
         if stream:
             # 串流模式處理
             logger.info(f"開始生成串流式徵品文案，使用風格: {style}")
             
-            # 獲取生成器函數
-            stream_generator = await generate_seeking_post(
+            # 準備並行任務
+            tasks = []
+            task_types = []
+            
+            # 文案生成任務（串流）
+            seeking_post_task = generate_seeking_post(
                 product_description=combined_description,
                 purpose=purpose,
                 expected_price=expected_price,
@@ -507,37 +510,115 @@ async def combined_seeking_post_endpoint(
                 style=style,
                 stream=True
             )
+            tasks.append(seeking_post_task)
+            task_types.append("text")
             
-            # 創建一個生成器函數，首先發送其他數據，然後串流文案內容
-            async def response_generator():
-                # 首先發送初始數據（圖片分析和生成的圖片）
-                initial_data = {
-                    "type": "metadata",
-                    "image_analysis": image_analysis_text,
-                    "generated_image": generated_image_path
-                }
-                yield json.dumps(initial_data) + "\n"
+            # 圖片生成任務（如果需要）
+            if image_generation_task:
+                tasks.append(image_generation_task)
+                task_types.append("image")
+            
+            # 如果只有文案任務，直接處理串流
+            if len(tasks) == 1:
+                stream_generator = await tasks[0]
                 
-                # 然後串流文案內容
-                async for content in stream_generator():
-                    chunk_data = {
-                        "type": "content",
-                        "chunk": content
+                # 創建一個生成器函數，首先發送其他數據，然後串流文案內容
+                async def response_generator():
+                    # 首先發送初始數據（圖片分析，生成的圖片初始為 None）
+                    initial_data = {
+                        "type": "metadata",
+                        "image_analysis": image_analysis_text,
+                        "generated_image": None  # 沒有圖片生成任務
                     }
-                    yield json.dumps(chunk_data) + "\n"
+                    yield json.dumps(initial_data) + "\n"
+                    
+                    # 然後串流文案內容
+                    async for content in stream_generator():
+                        chunk_data = {
+                            "type": "content",
+                            "chunk": content
+                        }
+                        yield json.dumps(chunk_data) + "\n"
+                    
+                    # 結束標記
+                    yield json.dumps({"type": "end"}) + "\n"
                 
-                # 結束標記
-                yield json.dumps({"type": "end"}) + "\n"
+                logger.info(f"返回串流回應")
+                return StreamingResponse(
+                    response_generator(),
+                    media_type="application/json"
+                )
             
-            logger.info(f"返回串流回應")
-            return StreamingResponse(
-                response_generator(),
-                media_type="application/json"
-            )
+            # 如果有圖片任務，使用並行處理
+            else:
+                # 並行啟動所有任務
+                running_tasks = []
+                for task in tasks:
+                    running_tasks.append(asyncio.create_task(task))
+                
+                # 獲取文案生成器（第一個任務）
+                text_task = running_tasks[0]
+                image_task = running_tasks[1] if len(running_tasks) > 1 else None
+                
+                # 創建一個生成器函數，首先發送其他數據，然後串流文案內容
+                async def response_generator():
+                    # 首先發送初始數據（圖片分析，生成的圖片初始為 None）
+                    initial_data = {
+                        "type": "metadata",
+                        "image_analysis": image_analysis_text,
+                        "generated_image": None  # 初始時圖片還沒生成完成
+                    }
+                    yield json.dumps(initial_data) + "\n"
+                    
+                    # 然後串流文案內容
+                    try:
+                        stream_generator = await text_task
+                        async for content in stream_generator():
+                            chunk_data = {
+                                "type": "content",
+                                "chunk": content
+                            }
+                            yield json.dumps(chunk_data) + "\n"
+                    except Exception as e:
+                        logger.error(f"文案串流失敗: {str(e)}")
+                    
+                    # 等待圖片生成完成（如果有的話）
+                    if image_task:
+                        try:
+                            generated_image_path = await image_task
+                            logger.info(f"商品參考圖片生成完成: {generated_image_path}")
+                            
+                            # 將路徑轉換為絕對路徑並統一分隔符
+                            if generated_image_path:
+                                import os
+                                generated_image_path = os.path.abspath(generated_image_path).replace('\\', '/')
+                            
+                            # 發送圖片生成完成的更新
+                            image_update_data = {
+                                "type": "image_update",
+                                "generated_image": generated_image_path
+                            }
+                            yield json.dumps(image_update_data) + "\n"
+                        except Exception as e:
+                            logger.error(f"圖片生成失敗: {str(e)}")
+                    
+                    # 結束標記
+                    yield json.dumps({"type": "end"}) + "\n"
+                
+                logger.info(f"返回並行串流回應")
+                return StreamingResponse(
+                    response_generator(),
+                    media_type="application/json"
+                )
         else:
-            # 非串流模式（原有功能）
-            logger.info(f"開始生成徵品文案，使用風格: {style}")
-            seeking_post_result = await generate_seeking_post(
+            # 非串流模式：並行執行圖片生成和文案生成
+            logger.info(f"開始並行生成徵品文案和圖片，使用風格: {style}")
+            
+            # 準備並行任務
+            tasks = []
+            
+            # 文案生成任務
+            seeking_post_task = generate_seeking_post(
                 product_description=combined_description,
                 purpose=purpose,
                 expected_price=expected_price,
@@ -548,6 +629,31 @@ async def combined_seeking_post_endpoint(
                 style=style,
                 stream=False
             )
+            tasks.append(seeking_post_task)
+            
+            # 圖片生成任務（如果需要）
+            if image_generation_task:
+                tasks.append(image_generation_task)
+            
+            # 並行執行所有任務
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 處理結果
+            seeking_post_result = results[0] if len(results) > 0 else None
+            generated_image_path = results[1] if len(results) > 1 and not isinstance(results[1], Exception) else None
+            
+            if isinstance(results[0], Exception):
+                logger.error(f"文案生成失敗: {str(results[0])}")
+                seeking_post_result = {"seeking_post": "文案生成失敗"}
+            
+            if len(results) > 1 and isinstance(results[1], Exception):
+                logger.error(f"圖片生成失敗: {str(results[1])}")
+                generated_image_path = None
+            elif generated_image_path:
+                logger.info(f"商品參考圖片生成完成: {generated_image_path}")
+                # 將路徑轉換為絕對路徑並統一分隔符
+                import os
+                generated_image_path = os.path.abspath(generated_image_path).replace('\\', '/')
 
             logger.info(f"社群徵品貼文服務處理完成")
 
@@ -555,7 +661,7 @@ async def combined_seeking_post_endpoint(
                     success=True,
                     data={
                         "image_analysis": image_analysis_text if image else "",
-                        "seeking_post": seeking_post_result["seeking_post"],
+                        "seeking_post": seeking_post_result["seeking_post"] if seeking_post_result else "",
                         "generated_image": generated_image_path
                     }
                 )
@@ -568,39 +674,6 @@ async def combined_seeking_post_endpoint(
         )
     except Exception as e:
         logger.error(f"社群徵品貼文服務處理失敗: {str(e)}", exc_info=True)
-        return ApiResponse(
-            success=False,
-            error=str(e)
-        )
-
-@router.post("/generate_seeking_image", response_model=ApiResponse)
-async def generate_seeking_image_endpoint(
-    description: str = Form(...)
-):
-    """
-    生成徵物參考圖片服務
-
-    - **description**: 徵求的商品描述
-    """
-    logger.info(f"接收生成徵物參考圖片請求: {description}")
-
-    try:
-        image_path = create_seeking_image(description)
-        
-        if not image_path:
-            raise HTTPException(status_code=500, detail="圖片生成失敗")
-
-        # 返回的是相對於 UI 的路徑
-        relative_path = os.path.relpath(image_path, "/Users/chenyirui/project/ReviveAI/ui")
-
-        return ApiResponse(
-            success=True,
-            data={
-                "image_path": relative_path
-            }
-        )
-    except Exception as e:
-        logger.error(f"生成徵物參考圖片失敗: {str(e)}", exc_info=True)
         return ApiResponse(
             success=False,
             error=str(e)

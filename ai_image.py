@@ -42,7 +42,7 @@ Please generate a high-quality product display image.
 
 # --- Core Functions ---
 
-async def remake_product_image(image_path: str, output_dir="/Users/chenyirui/project/ReviveAI/ui/temp_images") -> str:
+async def remake_product_image(image_path: str, output_dir="ui/temp_images") -> str:
     """
     使用 Gemini 2.5 Flash Image 進行 AI 圖片去背與背景更換。
     
@@ -92,7 +92,8 @@ async def remake_product_image(image_path: str, output_dir="/Users/chenyirui/pro
         generated_image.save(output_path)
         
         print(f"✅ AI 美化圖片完成，已儲存至: {output_path}")
-        return output_path
+        # 返回統一格式的絕對路徑
+        return os.path.abspath(output_path).replace('\\', '/')
 
     except Exception as e:
         print(f"❌ AI 圖片美化失敗: {e}")
@@ -103,8 +104,8 @@ async def remake_product_image(image_path: str, output_dir="/Users/chenyirui/pro
 if __name__ == '__main__':
     import asyncio
     # 測試程式碼 (需要一張測試圖片在 `ui/pics` 資料夾中)
-    # 請確保 /Users/chenyirui/project/ReviveAI/ui/pics/test1.jpg 存在
-    test_image_path = "/Users/chenyirui/project/ReviveAI/ui/pics/test1.jpg"
+    # 請確保 ui/pics/test1.jpg 存在
+    test_image_path = "ui/pics/test1.jpg"
     if os.path.exists(test_image_path):
         asyncio.run(remake_product_image(test_image_path))
     else:

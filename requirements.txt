@@ -3,7 +3,7 @@ chromadb==1.0.8
 fastapi==0.115.9
 langchain_mcp_adapters==0.1.11
 langchain_openai==1.0.1
-langgraph==1.0.1
+langgraph==1.0.2
 markdownify==1.1.0
 mcp==1.19.0
 openai==2.6.1
@@ -15,3 +15,5 @@ plotly==6.1.1
 filetype==1.2.0
 gradio==5.49.1
 posthog<6.0.0
+google-genai==1.47.0
+langchain==1.0.3
