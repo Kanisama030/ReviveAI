@@ -9,8 +9,15 @@ import asyncio
 import argparse
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain.agents import create_agent
+import getpass
+import os
+
+# 提示輸入 Google AI API 金鑰（如果尚未設定環境變數）
+if "GOOGLE_API_KEY" not in os.environ:
+    os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter your Google AI API key: ")
 
 # 載入環境變數
 load_dotenv()
@@ -28,7 +35,9 @@ async def search_product_info(query):
             - raw_response: 原始響應對象
     """
     # 使用 OpenAI 模型
-    model = ChatOpenAI(model="gpt-4o-mini")
+    # model = ChatOpenAI(model="gpt-4o-mini")
+    model = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite")
+
     
     # 配置 MCP 客戶端並連接到 WebTools 服務器
     client = MultiServerMCPClient(
