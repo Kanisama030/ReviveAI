@@ -17,3 +17,4 @@ gradio==5.49.1
 posthog<6.0.0
 google-genai==1.47.0
 langchain==1.0.3
+langchain-google-genai==3.0.1

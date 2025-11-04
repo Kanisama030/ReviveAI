@@ -8,6 +8,7 @@ import asyncio
 import json
 from fastapi.responses import StreamingResponse
 from pathlib import Path
+import uuid
 
 # 獲取日誌記錄器
 logger = logging.getLogger("reviveai_api")
@@ -19,7 +20,7 @@ from streaming_content_service import generate_streaming_product_content
 from calculate_carbon import calculate_carbon_footprint_async
 from selling_post_service import generate_selling_post
 from seeking_post_service import generate_seeking_post
-from seeking_image import create_seeking_image
+from seeking_image import create_seeking_image, remake_seeking_image
 from ai_image import remake_product_image
 
 # 建立 Router
@@ -555,6 +556,7 @@ async def combined_seeking_post_endpoint(
     try:
         image_analysis_text = ""
         generated_image_path = None
+        temp_image_path_for_generation = None  # 保存圖片路徑供圖片生成使用
 
         # 如果有上傳圖片，則進行分析
         if image and image.filename:  # 確保 image 存在且有檔案名稱
@@ -565,8 +567,10 @@ async def combined_seeking_post_endpoint(
             image_analysis = await analyze_image(temp_path)
             image_analysis_text = image_analysis.text
 
-            # 刪除臨時文件
-            os.unlink(temp_path)
+            # 保存圖片路徑供圖片生成使用（不刪除臨時文件）
+            temp_image_path_for_generation = temp_path
+        else:
+            image_analysis_text = ""
         
         # 將參考圖片分析結果與原始描述結合 (如果有圖片分析)
         combined_description = product_description
@@ -574,12 +578,38 @@ async def combined_seeking_post_endpoint(
             combined_description = f"徵求商品：\n{product_description}\n\n參考圖片分析:\n{image_analysis_text}"
         
         # 準備圖片生成任務（如果需要）
-        image_generation_task = None
+        image_generation_mode = None  # 用於標記使用的圖片生成模式
         if generate_image:
-            logger.info(f"開始生成商品參考圖片")
-            # 組合生成圖片的描述
-            image_generation_prompt = f"{product_description} - {purpose} - 預算: {expected_price}"
-            image_generation_task = create_seeking_image(image_generation_prompt)
+            if temp_image_path_for_generation:
+                # 模式 2：圖片修圖模式 - 使用已保存的圖片進行修圖
+                logger.info(f"開始進行圖片修圖模式，使用上傳的參考圖片")
+                # 創建包裝任務來處理圖片修圖
+                async def process_image_remake():
+                    # 複製臨時文件到我們自己的臨時目錄，以避免文件被意外刪除
+                    import shutil
+                    temp_copy_path = os.path.join("ui", "temp_images", f"temp_seeking_{uuid.uuid4()}.jpg")
+                    os.makedirs(os.path.dirname(temp_copy_path), exist_ok=True)
+                    shutil.copy2(temp_image_path_for_generation, temp_copy_path)
+                    
+                    try:
+                        return await remake_seeking_image(temp_copy_path, product_description)
+                    finally:
+                        # 清理臨時文件
+                        for temp_file in [temp_image_path_for_generation, temp_copy_path]:
+                            if temp_file and os.path.exists(temp_file):
+                                try:
+                                    os.unlink(temp_file)
+                                except Exception as e:
+                                    logger.warning(f"清理臨時文件失敗 {temp_file}: {str(e)}")
+                image_generation_task = process_image_remake()
+                image_generation_mode = "image-to-image"
+            else:
+                # 模式 1：文字生成模式 - 根據描述生成圖片
+                logger.info(f"開始生成商品參考圖片（文字生成模式）")
+                # 組合生成圖片的描述
+                image_generation_prompt = f"{product_description} - {purpose} - 預算: {expected_price}"
+                image_generation_task = create_seeking_image(image_generation_prompt)
+                image_generation_mode = "text-to-image"
         
         if stream:
             # 串流模式處理
@@ -605,7 +635,7 @@ async def combined_seeking_post_endpoint(
             task_types.append("text")
             
             # 圖片生成任務（如果需要）
-            if image_generation_task:
+            if generate_image:
                 tasks.append(image_generation_task)
                 task_types.append("image")
             
@@ -657,7 +687,8 @@ async def combined_seeking_post_endpoint(
                     initial_data = {
                         "type": "metadata",
                         "image_analysis": image_analysis_text,
-                        "generated_image": None  # 初始時圖片還沒生成完成
+                        "generated_image": None,  # 初始時圖片還沒生成完成
+                        "image_generation_mode": image_generation_mode
                     }
                     yield json.dumps(initial_data) + "\n"
                     
@@ -681,7 +712,6 @@ async def combined_seeking_post_endpoint(
                             
                             # 將路徑轉換為絕對路徑並統一分隔符
                             if generated_image_path:
-                                import os
                                 generated_image_path = os.path.abspath(generated_image_path).replace('\\', '/')
                             
                             # 發送圖片生成完成的更新
@@ -723,9 +753,26 @@ async def combined_seeking_post_endpoint(
             tasks.append(seeking_post_task)
             
             # 圖片生成任務（如果需要）
-            if image_generation_task:
-                tasks.append(image_generation_task)
-            
+            if generate_image:
+                if temp_image_path_for_generation:
+                    # 模式 2：圖片修圖模式 - 使用已保存的圖片進行修圖
+                    logger.info(f"開始進行圖片修圖模式，使用上傳的參考圖片")
+                    # 創建包裝任務來處理圖片修圖
+                    async def process_image_remake():
+                        try:
+                            return await remake_seeking_image(temp_image_path_for_generation, product_description)
+                        finally:
+                            # 清理臨時文件
+                            if os.path.exists(temp_image_path_for_generation):
+                                os.unlink(temp_image_path_for_generation)
+                    tasks.append(process_image_remake())
+                else:
+                    # 模式 1：文字生成模式 - 根據描述生成圖片
+                    logger.info(f"開始生成商品參考圖片（文字生成模式）")
+                    # 組合生成圖片的描述
+                    image_generation_prompt = f"{product_description} - {purpose} - 預算: {expected_price}"
+                    tasks.append(create_seeking_image(image_generation_prompt))
+                task_types.append("image")
             # 並行執行所有任務
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
@@ -743,7 +790,6 @@ async def combined_seeking_post_endpoint(
             elif generated_image_path:
                 logger.info(f"商品參考圖片生成完成: {generated_image_path}")
                 # 將路徑轉換為絕對路徑並統一分隔符
-                import os
                 generated_image_path = os.path.abspath(generated_image_path).replace('\\', '/')
 
             logger.info(f"社群徵品貼文服務處理完成")
@@ -753,7 +799,8 @@ async def combined_seeking_post_endpoint(
                     data={
                         "image_analysis": image_analysis_text if image else "",
                         "seeking_post": seeking_post_result["seeking_post"] if seeking_post_result else "",
-                        "generated_image": generated_image_path
+                        "generated_image": generated_image_path,
+                        "image_generation_mode": image_generation_mode
                     }
                 )
         
@@ -769,3 +816,11 @@ async def combined_seeking_post_endpoint(
             success=False,
             error=str(e)
         )
+    finally:
+        # 確保臨時文件被清理
+        # 如果有圖片生成任務，文件清理由圖片任務負責；否則在這裡清理
+        if temp_image_path_for_generation and os.path.exists(temp_image_path_for_generation) and not generate_image:
+            try:
+                os.unlink(temp_image_path_for_generation)
+            except Exception as e:
+                logger.warning(f"清理臨時文件失敗: {str(e)}")
